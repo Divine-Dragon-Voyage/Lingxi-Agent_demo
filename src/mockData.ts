@@ -1,4 +1,4 @@
-import type { AgentConfig, AppState, Flow, Guard, Session, Skill } from './types';
+import type { AgentConfig, AppState, Flow, Guard, Session, Skill, Team } from './types';
 
 export const now = () => new Date().toISOString();
 
@@ -31,6 +31,7 @@ const createConfig = (patch: Partial<AgentConfig> = {}): AgentConfig => ({
   memoryEnabled: true,
   memoryDays: 30,
   historyRounds: 12,
+  transferToHuman: { enabled: true, mode: 'automatic' },
   errorMessage: '抱歉，当前服务暂时无法完成回复，请稍后重试或联系人工客服。',
   flows: [],
   skillIds: [],
@@ -201,15 +202,54 @@ const makeSession = (input: {
   ],
 });
 
+const teams: Team[] = [
+  {
+    id: '100000', name: '通用', builtin: true, createdAt: at('07', '09:00'), updatedAt: at('11', '09:18'), members: [
+      { id: 'staff-lin', kind: 'human', name: '林雨', serviceId: 'CS-10021', online: true, acceptingChats: true, priority: 'primary' },
+      { id: 'staff-wang', kind: 'human', name: '王涵', serviceId: 'CS-10036', online: false, acceptingChats: false, priority: 'backup' },
+      { id: 'staff-zhou', kind: 'human', name: '周宁', serviceId: 'CS-10052', online: true, acceptingChats: true, priority: 'primary' },
+      { id: 'staff-chen', kind: 'human', name: '陈嘉', serviceId: 'CS-10068', online: true, acceptingChats: true, priority: 'primary' },
+      { id: 'staff-liu', kind: 'human', name: '刘璇', serviceId: 'CS-10073', online: true, acceptingChats: true, priority: 'backup' },
+      { id: 'agent-support', kind: 'ai', name: '客服接待', serviceId: 'AI-SUPPORT', online: true, acceptingChats: true, priority: 'backup' },
+      { id: 'agent-sales', kind: 'ai', name: '售前咨询', serviceId: 'AI-SALES', online: false, acceptingChats: false, priority: 'backup' },
+      { id: 'agent-logistics', kind: 'ai', name: '物流查询助手', serviceId: 'AI-ISTICS', online: false, acceptingChats: false, priority: 'backup' },
+      { id: 'agent-vip', kind: 'ai', name: '会员服务', serviceId: 'AI-VIP', online: false, acceptingChats: false, priority: 'backup' },
+      { id: 'agent-refund', kind: 'ai', name: '退款处理', serviceId: 'AI-EFUND', online: false, acceptingChats: false, priority: 'backup' },
+      { id: 'agent-after-sales', kind: 'ai', name: '售后工单助手', serviceId: 'AI-SALES', online: false, acceptingChats: false, priority: 'backup' },
+    ],
+  },
+  {
+    id: '100001', name: '客户服务组', createdAt: at('08', '10:00'), updatedAt: at('11', '09:18'), members: [
+      { id: 'staff-lin', kind: 'human', name: '林雨', serviceId: 'CS-10021', online: true, acceptingChats: true, priority: 'primary' },
+      { id: 'staff-wang', kind: 'human', name: '王涵', serviceId: 'CS-10036', online: false, acceptingChats: false, priority: 'backup' },
+      { id: 'agent-support', kind: 'ai', name: '客服接待', serviceId: 'AI-SUPPORT', online: true, acceptingChats: true, priority: 'backup' },
+    ],
+  },
+  {
+    id: '100002', name: '企业咨询组', createdAt: at('08', '11:30'), updatedAt: at('10', '18:36'), members: [
+      { id: 'staff-zhou', kind: 'human', name: '周宁', serviceId: 'CS-10052', online: true, acceptingChats: true, priority: 'primary' },
+      { id: 'agent-sales', kind: 'ai', name: '售前咨询', serviceId: 'AI-SALES', online: false, acceptingChats: false, priority: 'backup' },
+    ],
+  },
+  {
+    id: '100003', name: '会员服务组', createdAt: at('07', '09:20'), updatedAt: at('09', '16:42'), members: [
+      { id: 'staff-chen', kind: 'human', name: '陈嘉', serviceId: 'CS-10068', online: true, acceptingChats: true, priority: 'primary' },
+      { id: 'staff-liu', kind: 'human', name: '刘璇', serviceId: 'CS-10073', online: true, acceptingChats: true, priority: 'backup' },
+      { id: 'agent-vip', kind: 'ai', name: '会员服务', serviceId: 'AI-VIP', online: false, acceptingChats: false, priority: 'backup' },
+    ],
+  },
+];
+
 export const seedState: AppState = {
   agents: [
-    { id: 'agent-support', name: '客服接待', description: '处理订单查询、物流进度、退款申请和售后问题，并在必要时转接人工客服。', status: 'published', updatedAt: at('11', '09:18'), draft: supportDraft, published: cloneConfig(supportPublished) },
-    { id: 'agent-sales', name: '售前咨询', description: '介绍产品能力与套餐权益，收集企业采购需求并记录销售线索。', status: 'published', updatedAt: at('10', '18:36'), draft: cloneConfig(salesConfig), published: cloneConfig(salesConfig) },
-    { id: 'agent-logistics', name: '物流查询助手', description: '查询物流轨迹和预计送达时间，识别超时、停滞及异常签收问题。', status: 'published', updatedAt: at('10', '15:05'), draft: cloneConfig(logisticsConfig), published: cloneConfig(logisticsConfig) },
-    { id: 'agent-vip', name: '会员服务', description: '解答会员等级、积分和权益问题，并将账户争议转交专属人工服务组。', status: 'published', updatedAt: at('09', '16:42'), draft: cloneConfig(vipConfig), published: cloneConfig(vipConfig) },
-    { id: 'agent-refund', name: '退款处理', description: '校验退款条件并提交退款申请，目前仍需补充完整的人设配置后发布。', status: 'draft', updatedAt: at('11', '08:25'), draft: refundDraft, published: null },
-    { id: 'agent-after-sales', name: '售后工单助手', description: '收集商品问题和客户诉求，创建售后工单并返回预计处理时效。', status: 'draft', updatedAt: at('08', '17:55'), draft: afterSalesDraft, published: null },
+    { id: 'agent-support', name: '客服接待', description: '处理订单查询、物流进度、退款申请和售后问题，并在必要时转接人工客服。', status: 'published', updatedAt: at('11', '09:18'), teamIds: ['100000', '100001'], acceptingChats: true, draft: supportDraft, published: cloneConfig(supportPublished) },
+    { id: 'agent-sales', name: '售前咨询', description: '介绍产品能力与套餐权益，收集企业采购需求并记录销售线索。', status: 'published', updatedAt: at('10', '18:36'), teamIds: ['100000', '100002'], acceptingChats: false, draft: { ...cloneConfig(salesConfig), transferToHuman: { enabled: true, mode: 'specified', teamId: '100002' } }, published: { ...cloneConfig(salesConfig), transferToHuman: { enabled: true, mode: 'specified', teamId: '100002' } } },
+    { id: 'agent-logistics', name: '物流查询助手', description: '查询物流轨迹和预计送达时间，识别超时、停滞及异常签收问题。', status: 'published', updatedAt: at('10', '15:05'), teamIds: ['100000'], acceptingChats: false, draft: cloneConfig(logisticsConfig), published: cloneConfig(logisticsConfig) },
+    { id: 'agent-vip', name: '会员服务', description: '解答会员等级、积分和权益问题，并将账户争议转交专属人工服务组。', status: 'published', updatedAt: at('09', '16:42'), teamIds: ['100000', '100003'], acceptingChats: false, draft: cloneConfig(vipConfig), published: cloneConfig(vipConfig) },
+    { id: 'agent-refund', name: '退款处理', description: '校验退款条件并提交退款申请，目前仍需补充完整的人设配置后发布。', status: 'draft', updatedAt: at('11', '08:25'), teamIds: ['100000'], acceptingChats: false, draft: refundDraft, published: null },
+    { id: 'agent-after-sales', name: '售后工单助手', description: '收集商品问题和客户诉求，创建售后工单并返回预计处理时效。', status: 'draft', updatedAt: at('08', '17:55'), teamIds: ['100000'], acceptingChats: false, draft: afterSalesDraft, published: null },
   ],
+  teams,
   documents: [
     { id: 'doc-refund', type: 'PDF', name: '退款政策与时效', source: 'refund-policy-v3.pdf', size: 1823744, creator: '运营管理员', status: 'success', content: '退款申请需在符合售后政策的时间范围内提交。审核通过后，原路退款通常需要 1—3 个工作日。', updatedAt: at('10', '11:12') },
     { id: 'doc-delivery', type: 'URL', name: '物流配送说明', source: 'https://support.example.com/delivery', creator: '运营管理员', status: 'success', content: '普通地区预计 2—5 个工作日送达；偏远地区、预售商品和特殊天气以物流页面展示为准。', updatedAt: at('11', '01:52') },
@@ -222,6 +262,7 @@ export const seedState: AppState = {
     { id: 'doc-faq', type: 'CSV', name: '客户常见问题', source: 'customer-faq.csv', size: 96256, creator: '客服培训组', status: 'success', content: '整理订单、支付、物流、退款、发票和会员权益等高频问题及标准答案。', updatedAt: at('08', '15:12') },
     { id: 'doc-return', type: 'DOCX', name: '退换货处理规范', source: 'return-exchange-guide.docx', size: 487424, creator: '售后运营', status: 'success', content: '说明退换货适用条件、凭证要求、商品寄回方式和异常情况升级规则。', updatedAt: at('06', '17:35') },
     { id: 'doc-logistics-exception', type: 'PDF', name: '物流异常处理规范', source: 'logistics-exception-guide.pdf', size: 1269760, creator: '物流运营', status: 'adding', content: '正在上传并解析物流异常处理规范……', updatedAt: at('11', '09:06') },
+    { id: 'doc-after-sales-failed', type: 'PDF', name: '售后服务处理规范', source: 'after-sales-service-guide.pdf', size: 936960, creator: '售后运营', status: 'failed', content: '文档解析失败：第 12 页内容无法读取，请检查文件后重新处理。', updatedAt: at('11', '08:48') },
     { id: 'doc-broken-page', type: 'URL', name: '支付帮助中心', source: 'https://support.example.com/payment-help', creator: '运营管理员', status: 'failed', content: '网页抓取失败：目标页面返回 403，请检查访问权限后重新更新。', updatedAt: at('11', '08:48') },
   ],
   skills,

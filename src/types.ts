@@ -37,6 +37,7 @@ export interface AgentConfig {
   memoryDays: number | 'permanent';
   historyRounds: number;
   errorMessage: string;
+  transferToHuman: TransferToHumanConfig;
   flows: Flow[];
   skillIds: string[];
   knowledgeIds: string[];
@@ -49,10 +50,41 @@ export interface Agent {
   name: string;
   description: string;
   avatar?: string;
+  teamIds: string[];
+  acceptingChats: boolean;
   status: Status;
   updatedAt: string;
   draft: AgentConfig;
   published: AgentConfig | null;
+}
+
+export interface TransferToHumanConfig {
+  enabled: boolean;
+  mode: 'automatic' | 'specified';
+  teamId?: string;
+}
+
+export type TeamMemberKind = 'human' | 'ai';
+export type TeamPriority = 'primary' | 'backup';
+
+export interface TeamMember {
+  id: string;
+  kind: TeamMemberKind;
+  name: string;
+  serviceId: string;
+  avatar?: string;
+  online: boolean;
+  acceptingChats: boolean;
+  priority: TeamPriority;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  builtin?: boolean;
+  createdAt: string;
+  updatedAt: string;
+  members: TeamMember[];
 }
 
 export interface KnowledgeDocument {
@@ -64,6 +96,7 @@ export interface KnowledgeDocument {
   creator: string;
   status: KnowledgeStatus;
   content: string;
+  createdAt?: string;
   updatedAt: string;
 }
 
@@ -106,6 +139,7 @@ export interface Session {
 
 export interface AppState {
   agents: Agent[];
+  teams: Team[];
   documents: KnowledgeDocument[];
   skills: Skill[];
   channels: Channel[];
