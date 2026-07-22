@@ -145,7 +145,7 @@ const salesConfig = createConfig({
 const logisticsConfig = createConfig({
   prompt: '你是物流服务智能体，负责查询配送轨迹、解释预计送达时间并处理物流异常。只使用系统返回的物流数据。',
   style: '简洁',
-  memoryEnabled: false,
+  memoryEnabled: true,
   flows: [orderFlow, logisticsFlow, humanFlow],
   skillIds: ['skill-order', 'skill-logistics', 'skill-ticket'],
   knowledgeIds: ['doc-delivery', 'doc-logistics-exception', 'doc-service-sla'],
@@ -167,7 +167,7 @@ const vipConfig = createConfig({
 
 const refundDraft = createConfig({
   prompt: '',
-  memoryEnabled: false,
+  memoryEnabled: true,
   flows: [refundFlow],
   skillIds: ['skill-refund'],
   knowledgeIds: ['doc-refund', 'doc-return'],

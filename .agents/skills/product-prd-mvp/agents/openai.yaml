@@ -1,0 +1,4 @@
+interface:
+  display_name: "产品 PRD MVP"
+  short_description: "将明确需求场景转为可执行且可验收的 MVP PRD 文档"
+  default_prompt: "Use $product-prd-mvp to turn my confirmed product scenario into an executable MVP PRD."
