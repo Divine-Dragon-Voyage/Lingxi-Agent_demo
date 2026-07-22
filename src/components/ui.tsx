@@ -27,6 +27,7 @@ import {
   Tooltip as ArcoTooltip,
   Tabs as ArcoTabs,
   Descriptions as ArcoDescriptions,
+  Upload,
 } from '@arco-design/web-react';
 import { forwardRef, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
@@ -42,7 +43,7 @@ const normalizeColor = (color: unknown) => ({
   default: 'gray',
 }[String(color)] || color);
 
-export { Avatar, Badge, Card, Checkbox, Col, DatePicker, Divider, Dropdown, Layout, Menu, Message, Radio, Row, Select, Space };
+export { Avatar, Badge, Card, Checkbox, Col, DatePicker, Divider, Dropdown, Layout, Menu, Message, Radio, Row, Select, Space, Upload };
 
 const CompatEmpty = ({ children, image: _image, ...props }: any) => <><ArcoEmpty {...props} /><div className="empty-action">{children}</div></>;
 CompatEmpty.PRESENTED_IMAGE_SIMPLE = null;

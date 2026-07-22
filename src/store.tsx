@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useReducer } from 'react';
 import type { AppState, Agent, AgentConfig, Channel, Flow, Guard, KnowledgeDocument, Skill, Team, TeamMember } from './types';
-import { now, seedState } from './mockData';
+import { BOUND_DELETE_DEMO_DOCUMENT_ID, KNOWLEDGE_DELETE_DEMO_VERSION, now, seedState, UNBOUND_DELETE_DEMO_DOCUMENT_ID } from './mockData';
 import { DEFAULT_TEAM_ID, DEFAULT_TEAM_NAME, isDefaultTeam } from './teamDefaults';
 
 type Action =
@@ -23,8 +23,22 @@ type Action =
   | { type: 'channel.delete'; id: string };
 
 const STORAGE_KEY = 'lingxi-agent-prototype:v3:ai-customer-20260720';
+const AVATAR_REFERENCE_PREFIX = '__agent_avatar_ref__:';
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 const LEGACY_TEAM_IDS: Record<string, string> = { 'team-support': '100001', 'team-sales': '100002', 'team-vip': '100003' };
+const LEGACY_CREATOR_NAMES: Record<string, string> = {
+  当前用户: 'Owen',
+  运营管理员: 'Lana',
+  物流运营: 'Mia',
+  产品团队: 'Mia',
+  客户体验团队: 'Ethan',
+  会员运营: 'Sophia',
+  商业化团队: 'Leo',
+  市场运营: 'Emma',
+  商品运营: 'Ryan',
+  客服培训组: 'Ava',
+  售后运营: 'Noah',
+};
 
 function keepDefaultTeam(state: AppState): AppState {
   const existing = state.teams.find(isDefaultTeam);
@@ -64,6 +78,7 @@ function normalizeTeamIds(state: AppState): AppState {
   const remapConfig = (config: AgentConfig): AgentConfig => ({ ...config, transferToHuman: { ...config.transferToHuman, teamId: remap(config.transferToHuman.teamId) } });
   return keepDefaultTeam({
     ...state,
+    documents: state.documents.map((document) => ({ ...document, creator: LEGACY_CREATOR_NAMES[document.creator] || document.creator })),
     teams: state.teams.map((team) => ({ ...team, id: remap(team.id)!, builtin: isDefaultTeam(team) || team.id === DEFAULT_TEAM_ID ? true : team.builtin })),
     agents: state.agents.map((agent) => ({
       ...agent,
@@ -72,6 +87,57 @@ function normalizeTeamIds(state: AppState): AppState {
       published: agent.published ? remapConfig(agent.published) : null,
     })),
   });
+}
+
+function ensureKnowledgeDeleteDemoData(state: AppState): AppState {
+  if ((state.demoDataVersion ?? 0) >= KNOWLEDGE_DELETE_DEMO_VERSION) return state;
+  const demoDocumentIds = new Set([BOUND_DELETE_DEMO_DOCUMENT_ID, UNBOUND_DELETE_DEMO_DOCUMENT_ID]);
+  const existingDocumentIds = new Set(state.documents.map((document) => document.id));
+  const demoDocuments = seedState.documents.filter((document) => demoDocumentIds.has(document.id) && !existingDocumentIds.has(document.id));
+  const bindDemoDocument = (config: AgentConfig): AgentConfig => ({ ...config, knowledgeIds: Array.from(new Set([...config.knowledgeIds, BOUND_DELETE_DEMO_DOCUMENT_ID])) });
+  return {
+    ...state,
+    demoDataVersion: KNOWLEDGE_DELETE_DEMO_VERSION,
+    documents: [...demoDocuments, ...state.documents],
+    agents: state.agents.map((agent) => ['agent-support', 'agent-refund'].includes(agent.id) ? {
+      ...agent,
+      draft: bindDemoDocument(agent.draft),
+      published: agent.published ? bindDemoDocument(agent.published) : null,
+    } : agent),
+  };
+}
+
+function serializeState(state: AppState): string {
+  const avatarOwners = new Map<string, string>();
+  const agents = state.agents.map((agent) => {
+    if (!agent.avatar?.startsWith('data:')) return agent;
+    const ownerId = avatarOwners.get(agent.avatar);
+    if (ownerId) return { ...agent, avatar: `${AVATAR_REFERENCE_PREFIX}${ownerId}` };
+    avatarOwners.set(agent.avatar, agent.id);
+    return agent;
+  });
+  const teams = state.teams.map((team) => ({
+    ...team,
+    members: team.members.map((member) => member.kind === 'ai' && member.avatar ? { ...member, avatar: undefined } : member),
+  }));
+  return JSON.stringify({ ...state, agents, teams });
+}
+
+function deserializeState(stored: string): AppState {
+  const state = JSON.parse(stored) as AppState;
+  const avatars = new Map(state.agents.map((agent) => [agent.id, agent.avatar]));
+  const resolveAvatar = (agent: Agent) => {
+    let avatar = agent.avatar;
+    const visited = new Set<string>();
+    while (avatar?.startsWith(AVATAR_REFERENCE_PREFIX)) {
+      const ownerId = avatar.slice(AVATAR_REFERENCE_PREFIX.length);
+      if (visited.has(ownerId)) return '';
+      visited.add(ownerId);
+      avatar = avatars.get(ownerId) ?? '';
+    }
+    return avatar;
+  };
+  return { ...state, agents: state.agents.map((agent) => ({ ...agent, avatar: resolveAvatar(agent) })) };
 }
 
 function reducer(state: AppState, action: Action): AppState {
@@ -122,7 +188,10 @@ function reducer(state: AppState, action: Action): AppState {
     case 'team.delete': return action.id === DEFAULT_TEAM_ID ? state : { ...state, teams: state.teams.filter((item) => item.id !== action.id), agents: state.agents.map((agent) => ({ ...agent, teamIds: agent.teamIds.filter((id) => id !== action.id) })) };
     case 'document.add': return { ...state, documents: [action.document, ...state.documents] };
     case 'document.update': return { ...state, documents: state.documents.map((item) => item.id === action.id ? { ...item, ...action.patch, updatedAt: now() } : item) };
-    case 'document.delete': return { ...state, documents: state.documents.filter((item) => item.id !== action.id), agents: state.agents.map((item) => ({ ...item, draft: { ...item.draft, knowledgeIds: item.draft.knowledgeIds.filter((id) => id !== action.id) }, published: item.published ? { ...item.published, knowledgeIds: item.published.knowledgeIds.filter((id) => id !== action.id) } : null })) };
+    case 'document.delete': {
+      const isBound = state.agents.some((agent) => agent.draft.knowledgeIds.includes(action.id) || agent.published?.knowledgeIds.includes(action.id));
+      return isBound ? state : { ...state, documents: state.documents.filter((item) => item.id !== action.id) };
+    }
     case 'skill.add': return { ...state, skills: [action.skill, ...state.skills] };
     case 'skill.toggle': return { ...state, skills: state.skills.map((item) => item.id === action.id ? { ...item, enabled: action.enabled, updatedAt: now() } : item), agents: action.enabled ? state.agents : state.agents.map((item) => ({ ...item, draft: { ...item.draft, skillIds: item.draft.skillIds.filter((id) => id !== action.id) }, published: item.published ? { ...item.published, skillIds: item.published.skillIds.filter((id) => id !== action.id) } : null })) };
     case 'skill.delete': return { ...state, skills: state.skills.filter((item) => item.id !== action.id), agents: state.agents.map((item) => ({ ...item, draft: { ...item.draft, skillIds: item.draft.skillIds.filter((id) => id !== action.id) }, published: item.published ? { ...item.published, skillIds: item.published.skillIds.filter((id) => id !== action.id) } : null })) };
@@ -134,14 +203,20 @@ function reducer(state: AppState, action: Action): AppState {
 }
 
 function loadState(): AppState {
-  try { const stored = localStorage.getItem(STORAGE_KEY); return normalizeTeamIds(stored ? JSON.parse(stored) : seedState); } catch { return normalizeTeamIds(seedState); }
+  try { const stored = localStorage.getItem(STORAGE_KEY); return ensureKnowledgeDeleteDemoData(normalizeTeamIds(stored ? deserializeState(stored) : seedState)); } catch { return ensureKnowledgeDeleteDemoData(normalizeTeamIds(seedState)); }
 }
 
 const StoreContext = createContext<{ state: AppState; dispatch: React.Dispatch<Action> } | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, loadState);
-  useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }, [state]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, serializeState(state));
+    } catch (error) {
+      console.error('Failed to persist application state.', error);
+    }
+  }, [state]);
   const value = useMemo(() => ({ state, dispatch }), [state]);
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }

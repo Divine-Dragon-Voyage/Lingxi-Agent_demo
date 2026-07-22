@@ -5,6 +5,10 @@ export const now = () => new Date().toISOString();
 const at = (day: string, time: string) => `2026-07-${day}T${time}:00+08:00`;
 const cloneConfig = (config: AgentConfig): AgentConfig => JSON.parse(JSON.stringify(config));
 
+export const KNOWLEDGE_DELETE_DEMO_VERSION = 1;
+export const BOUND_DELETE_DEMO_DOCUMENT_ID = 'doc-delete-bound-confirmation';
+export const UNBOUND_DELETE_DEMO_DOCUMENT_ID = 'doc-delete-unbound-confirmation';
+
 const flow = (id: string, name: string, trigger: string, steps: string[], updatedAt: string): Flow => ({
   id,
   name,
@@ -109,7 +113,7 @@ const supportPublished = createConfig({
   historyRounds: 15,
   flows: [orderFlow, refundFlow, ticketFlow, humanFlow],
   skillIds: ['skill-order', 'skill-ticket', 'skill-refund'],
-  knowledgeIds: ['doc-refund', 'doc-delivery', 'doc-service-sla', 'doc-faq'],
+  knowledgeIds: ['doc-refund', 'doc-delivery', 'doc-service-sla', 'doc-faq', BOUND_DELETE_DEMO_DOCUMENT_ID],
   guards: [
     guard('guard-sensitive', '敏感凭证保护', 'end', '用户要求提供账号密码、Token、密钥或内部接口地址时触发。', true, at('10', '13:42')),
     guard('guard-promise', '禁止收益与结果承诺', 'fixed', '用户要求承诺退款必定到账、赔付结果或其他确定性处理结果时触发。', true, at('09', '09:25'), '具体处理结果以系统审核和实际进度为准，我可以继续帮你查询当前状态。'),
@@ -170,7 +174,7 @@ const refundDraft = createConfig({
   memoryEnabled: true,
   flows: [refundFlow],
   skillIds: ['skill-refund'],
-  knowledgeIds: ['doc-refund', 'doc-return'],
+  knowledgeIds: ['doc-refund', 'doc-return', BOUND_DELETE_DEMO_DOCUMENT_ID],
   guards: [guard('guard-refund-promise', '退款承诺限制', 'fixed', '用户要求保证具体到账日期或审核结果时触发。', true, at('10', '12:22'), '退款结果和到账时间以审核进度及支付机构处理为准。')],
 });
 
@@ -241,6 +245,7 @@ const teams: Team[] = [
 ];
 
 export const seedState: AppState = {
+  demoDataVersion: KNOWLEDGE_DELETE_DEMO_VERSION,
   agents: [
     { id: 'agent-support', name: '客服接待', description: '处理订单查询、物流进度、退款申请和售后问题，并在必要时转接人工客服。', status: 'published', updatedAt: at('11', '09:18'), teamIds: ['100000', '100001'], acceptingChats: true, draft: supportDraft, published: cloneConfig(supportPublished) },
     { id: 'agent-sales', name: '售前咨询', description: '介绍产品能力与套餐权益，收集企业采购需求并记录销售线索。', status: 'published', updatedAt: at('10', '18:36'), teamIds: ['100000', '100002'], acceptingChats: false, draft: { ...cloneConfig(salesConfig), transferToHuman: { enabled: true, mode: 'specified', teamId: '100002' } }, published: { ...cloneConfig(salesConfig), transferToHuman: { enabled: true, mode: 'specified', teamId: '100002' } } },
@@ -251,19 +256,21 @@ export const seedState: AppState = {
   ],
   teams,
   documents: [
-    { id: 'doc-refund', type: 'PDF', name: '退款政策与时效', source: 'refund-policy-v3.pdf', size: 1823744, creator: '运营管理员', status: 'success', content: '退款申请需在符合售后政策的时间范围内提交。审核通过后，原路退款通常需要 1—3 个工作日。', updatedAt: at('10', '11:12') },
-    { id: 'doc-delivery', type: 'URL', name: '物流配送说明', source: 'https://support.example.com/delivery', creator: '运营管理员', status: 'success', content: '普通地区预计 2—5 个工作日送达；偏远地区、预售商品和特殊天气以物流页面展示为准。', updatedAt: at('11', '01:52') },
-    { id: 'doc-product', type: 'MD', name: '产品能力介绍', source: 'product-overview.md', size: 41984, creator: '产品团队', status: 'success', content: '产品支持智能体配置、流程、知识库、技能、防护措施、环境变量、LiveChat 渠道和会话监控。', updatedAt: at('10', '11:12') },
-    { id: 'doc-service-sla', type: 'DOCX', name: '客户服务响应时效', source: 'customer-service-sla.docx', size: 268288, creator: '客户体验团队', status: 'success', content: '普通咨询应在 2 分钟内首次响应；售后工单在工作时间 4 小时内进入处理队列。', updatedAt: at('09', '16:05') },
-    { id: 'doc-vip', type: 'TXT', name: '会员等级与权益说明', source: 'vip-benefits.txt', size: 28672, creator: '会员运营', status: 'success', content: '会员权益包括积分加速、专属活动和优先人工服务，具体可用权益以账户页面为准。', updatedAt: at('08', '13:40') },
-    { id: 'doc-plan', type: 'DOC', name: '套餐与权益说明', source: 'plans-and-entitlements.doc', size: 356352, creator: '商业化团队', status: 'success', content: '不同套餐在智能体数量、知识容量和渠道接入数量上存在差异，最终报价由销售顾问确认。', updatedAt: at('09', '10:18') },
-    { id: 'doc-promotion', type: 'URL', name: '企业试用活动', source: 'https://www.example.com/trial', creator: '市场运营', status: 'success', content: '符合条件的企业可以申请 14 天产品试用，具体额度和开通时间以审核结果为准。', updatedAt: at('07', '18:25') },
-    { id: 'doc-sku', type: 'XLSX', name: '商品与库存编码表', source: 'sku-inventory-map.xlsx', size: 745472, creator: '商品运营', status: 'success', content: '包含商品编码、销售区域、仓库和补货周期等结构化数据。', updatedAt: at('07', '09:20') },
-    { id: 'doc-faq', type: 'CSV', name: '客户常见问题', source: 'customer-faq.csv', size: 96256, creator: '客服培训组', status: 'success', content: '整理订单、支付、物流、退款、发票和会员权益等高频问题及标准答案。', updatedAt: at('08', '15:12') },
-    { id: 'doc-return', type: 'DOCX', name: '退换货处理规范', source: 'return-exchange-guide.docx', size: 487424, creator: '售后运营', status: 'success', content: '说明退换货适用条件、凭证要求、商品寄回方式和异常情况升级规则。', updatedAt: at('06', '17:35') },
-    { id: 'doc-logistics-exception', type: 'PDF', name: '物流异常处理规范', source: 'logistics-exception-guide.pdf', size: 1269760, creator: '物流运营', status: 'adding', content: '正在上传并解析物流异常处理规范……', updatedAt: at('11', '09:06') },
-    { id: 'doc-after-sales-failed', type: 'PDF', name: '售后服务处理规范', source: 'after-sales-service-guide.pdf', size: 936960, creator: '售后运营', status: 'failed', content: '文档解析失败：第 12 页内容无法读取，请检查文件后重新处理。', updatedAt: at('11', '08:48') },
-    { id: 'doc-broken-page', type: 'URL', name: '支付帮助中心', source: 'https://support.example.com/payment-help', creator: '运营管理员', status: 'failed', content: '网页抓取失败：目标页面返回 403，请检查访问权限后重新更新。', updatedAt: at('11', '08:48') },
+    { id: BOUND_DELETE_DEMO_DOCUMENT_ID, type: 'PDF', name: '文档被绑定删除二次提示', source: 'bound-document-delete-confirmation.pdf', size: 864256, creator: 'Owen', status: 'success', content: '用于演示文档已被 AI 客服绑定时，系统阻止删除并提示先解除绑定。', updatedAt: at('22', '09:42') },
+    { id: UNBOUND_DELETE_DEMO_DOCUMENT_ID, type: 'PDF', name: '文档未被绑定删除二次提示', source: 'unbound-document-delete-confirmation.pdf', size: 716800, creator: 'Lana', status: 'success', content: '用于演示文档未被 AI 客服绑定时，删除前出现二次确认。', updatedAt: at('22', '09:40') },
+    { id: 'doc-refund', type: 'PDF', name: '退款政策与时效', source: 'refund-policy-v3.pdf', size: 1823744, creator: 'Lana', status: 'success', content: '退款申请需在符合售后政策的时间范围内提交。审核通过后，原路退款通常需要 1—3 个工作日。', updatedAt: at('10', '11:12') },
+    { id: 'doc-delivery', type: 'URL', name: '物流配送说明', source: 'https://support.example.com/delivery', creator: 'Owen', status: 'success', content: '普通地区预计 2—5 个工作日送达；偏远地区、预售商品和特殊天气以物流页面展示为准。', updatedAt: at('11', '01:52') },
+    { id: 'doc-product', type: 'MD', name: '产品能力介绍', source: 'product-overview.md', size: 41984, creator: 'Mia', status: 'success', content: '产品支持智能体配置、流程、知识库、技能、防护措施、环境变量、LiveChat 渠道和会话监控。', updatedAt: at('10', '11:12') },
+    { id: 'doc-service-sla', type: 'DOCX', name: '客户服务响应时效', source: 'customer-service-sla.docx', size: 268288, creator: 'Ethan', status: 'success', content: '普通咨询应在 2 分钟内首次响应；售后工单在工作时间 4 小时内进入处理队列。', updatedAt: at('09', '16:05') },
+    { id: 'doc-vip', type: 'TXT', name: '会员等级与权益说明', source: 'vip-benefits.txt', size: 28672, creator: 'Sophia', status: 'success', content: '会员权益包括积分加速、专属活动和优先人工服务，具体可用权益以账户页面为准。', updatedAt: at('08', '13:40') },
+    { id: 'doc-plan', type: 'DOC', name: '套餐与权益说明', source: 'plans-and-entitlements.doc', size: 356352, creator: 'Leo', status: 'success', content: '不同套餐在智能体数量、知识容量和渠道接入数量上存在差异，最终报价由销售顾问确认。', updatedAt: at('09', '10:18') },
+    { id: 'doc-promotion', type: 'URL', name: '企业试用活动', source: 'https://www.example.com/trial', creator: 'Emma', status: 'success', content: '符合条件的企业可以申请 14 天产品试用，具体额度和开通时间以审核结果为准。', updatedAt: at('07', '18:25') },
+    { id: 'doc-sku', type: 'XLSX', name: '商品与库存编码表', source: 'sku-inventory-map.xlsx', size: 745472, creator: 'Ryan', status: 'success', content: '包含商品编码、销售区域、仓库和补货周期等结构化数据。', updatedAt: at('07', '09:20') },
+    { id: 'doc-faq', type: 'CSV', name: '客户常见问题', source: 'customer-faq.csv', size: 96256, creator: 'Ava', status: 'success', content: '整理订单、支付、物流、退款、发票和会员权益等高频问题及标准答案。', updatedAt: at('08', '15:12') },
+    { id: 'doc-return', type: 'DOCX', name: '退换货处理规范', source: 'return-exchange-guide.docx', size: 487424, creator: 'Noah', status: 'success', content: '说明退换货适用条件、凭证要求、商品寄回方式和异常情况升级规则。', updatedAt: at('06', '17:35') },
+    { id: 'doc-logistics-exception', type: 'PDF', name: '物流异常处理规范', source: 'logistics-exception-guide.pdf', size: 1269760, creator: 'Mia', status: 'adding', content: '正在上传并解析物流异常处理规范……', updatedAt: at('11', '09:06') },
+    { id: 'doc-after-sales-failed', type: 'PDF', name: '售后服务处理规范', source: 'after-sales-service-guide.pdf', size: 936960, creator: 'Owen', status: 'failed', content: '文档解析失败：第 12 页内容无法读取，请检查文件后重新处理。', updatedAt: at('11', '08:48') },
+    { id: 'doc-broken-page', type: 'URL', name: '支付帮助中心', source: 'https://support.example.com/payment-help', creator: 'Lana', status: 'failed', content: '网页抓取失败：目标页面返回 403，请检查访问权限后重新更新。', updatedAt: at('11', '08:48') },
   ],
   skills,
   channels: [

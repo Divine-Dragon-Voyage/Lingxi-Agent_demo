@@ -8,7 +8,7 @@ import { PageHeader } from '../components/PageHeader';
 import { now } from '../mockData';
 import { useAppStore } from '../store';
 import { isDefaultTeam } from '../teamDefaults';
-import type { Team, TeamMember, TeamPriority } from '../types';
+import type { Team, TeamMember } from '../types';
 
 type Candidate = TeamMember;
 
@@ -64,7 +64,7 @@ function CandidatePicker({ visible, title, excludedIds, onCancel, onConfirm }: {
   return <Modal visible={visible} title={title} className="member-picker-modal" width={640} onCancel={onCancel} footer={<Space><Button onClick={onCancel}>取消</Button><Button type="primary" disabled={!selected.length} onClick={() => onConfirm(candidates.filter((member) => selected.includes(member.id)))}>添加</Button></Space>}><div className="team-modal-members"><label className="team-field-label">选择成员</label><MemberSelector candidates={candidates} selected={selected} onChange={setSelected} /></div></Modal>;
 }
 
-function TeamCreateModal({ visible, onCancel }: { visible: boolean; onCancel: () => void }) {
+function TeamCreateModal({ visible, onCancel, onCreated }: { visible: boolean; onCancel: () => void; onCreated: (team: Team) => void }) {
   const { state, dispatch } = useAppStore();
   const [name, setName] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
@@ -74,8 +74,9 @@ function TeamCreateModal({ visible, onCancel }: { visible: boolean; onCancel: ()
     const trimmed = name.trim();
     if (!trimmed) return;
     const timestamp = now();
-    dispatch({ type: 'team.save', team: { id: nextTeamId(state.teams), name: trimmed, createdAt: timestamp, updatedAt: timestamp, members: candidates.filter((member) => selected.includes(member.id)) } });
-    onCancel();
+    const team: Team = { id: nextTeamId(state.teams), name: trimmed, createdAt: timestamp, updatedAt: timestamp, members: candidates.filter((member) => selected.includes(member.id)) };
+    dispatch({ type: 'team.save', team });
+    onCreated(team);
   };
   return <Modal visible={visible} title="新建团队" className="team-create-modal" width={640} onCancel={onCancel} footer={<Space><Button onClick={onCancel}>取消</Button><Button type="primary" disabled={!name.trim()} onClick={save}>创建团队</Button></Space>}>
     <div className="team-create-form"><div className="team-create-field"><label className="team-field-label">团队名称</label><Input value={name} maxLength={32} showWordLimit placeholder="请输入团队名称" onChange={setName} /></div>
@@ -83,13 +84,15 @@ function TeamCreateModal({ visible, onCancel }: { visible: boolean; onCancel: ()
   </Modal>;
 }
 
-function PrioritySelector({ value, onChange, disabled = false }: { value: TeamPriority; onChange: (value: TeamPriority) => void; disabled?: boolean }) {
-  const options: Array<{ value: TeamPriority; title: string; description: string }> = [
-    { value: 'primary', title: '主要', description: '第一个在团队中接受聊天' },
-    { value: 'backup', title: '备份', description: '当其他人忙碌时接受聊天' },
-  ];
-  const selected = options.find((option) => option.value === value) ?? options[0];
-  return <Dropdown trigger="click" disabled={disabled} position="bl" droplist={<Menu className="team-priority-menu" onClickMenuItem={(key) => onChange(key as TeamPriority)}>{options.map((option) => <Menu.Item key={option.value} className={option.value === value ? 'selected' : ''} style={{ minHeight: 64, height: 'auto' }}><span className="team-priority-option"><span className="team-priority-option-copy"><strong>{option.title}</strong><span className="team-priority-option-description">{option.description}</span></span>{option.value === value && <IconCheck />}</span></Menu.Item>)}</Menu>}><Button type="text" className="team-priority-trigger" aria-label={`优先级：${selected.title}`} disabled={disabled}><strong>{selected.title}</strong><IconDown /></Button></Dropdown>;
+function TeamCreatedModal({ team, onClose, onCreateAnother }: { team?: Team; onClose: () => void; onCreateAnother: () => void }) {
+  return <Modal visible={Boolean(team)} title={null} footer={null} className="team-created-modal" width={480} onCancel={onClose}>
+    <div className="team-created-result">
+      <span className="team-created-icon" aria-hidden="true"><IconCheck /></span>
+      <h2>「{team?.name}」创建成功</h2>
+      <p>已成功添加 {team?.members.length ?? 0} 名团队成员</p>
+      <div className="team-created-actions"><Button onClick={onCreateAnother}>继续创建</Button><Button type="primary" onClick={onClose}>完成</Button></div>
+    </div>
+  </Modal>;
 }
 
 export function TeamsPage() {
@@ -97,6 +100,8 @@ export function TeamsPage() {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [createVisible, setCreateVisible] = useState(false);
+  const [createdTeam, setCreatedTeam] = useState<Team>();
+  const [deletingTeam, setDeletingTeam] = useState<Team>();
   const [copiedId, setCopiedId] = useState<string>();
   const teams = state.teams.filter((team) => team.name.includes(query.trim())).sort((left, right) => Number(isDefaultTeam(right)) - Number(isDefaultTeam(left)));
   const copyId = async (id: string) => {
@@ -108,18 +113,24 @@ export function TeamsPage() {
       setCopiedId(undefined);
     }
   };
-  const deleteTeam = (team: Team) => {
+  const requestDeleteTeam = (team: Team) => {
     const usedBy = state.agents.find((agent) => agent.draft.transferToHuman.mode === 'specified' && agent.draft.transferToHuman.teamId === team.id);
     if (usedBy) { Message.warning(`AI客服「${usedBy.name}」正在转至该团队，请先修改其转人工设置。`); return; }
-    Modal.confirm({ title: '删除团队', content: `确定删除「${team.name}」吗？`, onOk: () => dispatch({ type: 'team.delete', id: team.id }) });
+    setDeletingTeam(team);
+  };
+  const confirmDeleteTeam = () => {
+    if (!deletingTeam) return;
+    dispatch({ type: 'team.delete', id: deletingTeam.id });
+    setDeletingTeam(undefined);
+    Message.success('团队已删除');
   };
   const columns = [
     { title: '名称', dataIndex: 'name', render: (_: unknown, team: Team) => <button className="team-name-cell" onClick={() => navigate(`/teams/${team.id}`)}><TeamAvatar team={team} /><span><strong>{team.name}</strong><small>{team.members.length} 名成员</small></span></button> },
     { title: 'ID', dataIndex: 'id', render: (id: string) => <span className="team-id-cell"><span className="mono muted">{id}</span><Button type="text" className={`team-id-copy${copiedId === id ? ' copied' : ''}`} icon={copiedId === id ? <IconCheck /> : <IconCopy />} aria-label={copiedId === id ? `已复制团队 ID ${id}` : `复制团队 ID ${id}`} title={copiedId === id ? '已复制' : '复制 ID'} onClick={(event: MouseEvent<HTMLButtonElement>) => { event.stopPropagation(); void copyId(id); }} /></span> },
     { title: '在线成员', key: 'accepting', render: (_: unknown, team: Team) => <span>{team.members.filter((member) => member.acceptingChats && member.online).length}/{team.members.length}</span> },
-    { title: '操作', key: 'actions', align: 'right' as const, render: (_: unknown, team: Team) => <Dropdown droplist={<Menu onClickMenuItem={(key) => key === 'edit' ? navigate(`/teams/${team.id}`) : deleteTeam(team)}><Menu.Item key="edit"><IconEdit />编辑</Menu.Item>{!isDefaultTeam(team) && <Menu.Item key="delete" className="danger-menu-item"><IconDelete />删除</Menu.Item>}</Menu>}><Button type="text" icon={<IconMore />} aria-label={`更多操作：${team.name}`} /></Dropdown> },
+    { title: '操作', key: 'actions', align: 'right' as const, render: (_: unknown, team: Team) => <Dropdown droplist={<Menu onClickMenuItem={(key) => key === 'edit' ? navigate(`/teams/${team.id}`) : requestDeleteTeam(team)}><Menu.Item key="edit"><IconEdit />编辑</Menu.Item>{!isDefaultTeam(team) && <Menu.Item key="delete" className="danger-menu-item"><IconDelete />删除</Menu.Item>}</Menu>}><Button type="text" icon={<IconMore />} aria-label={`更多操作：${team.name}`} /></Dropdown> },
   ];
-  return <section className="module-page page-content team-page"><PageHeader title="团队" actions={<Button type="primary" icon={<IconPlus />} onClick={() => setCreateVisible(true)}>新建团队</Button>} /><div className="filter-bar"><Input className="module-search" prefix={<IconSearch />} placeholder="搜索团队" value={query} onChange={setQuery} /></div><Table rowKey="id" columns={columns} data={teams} pagination={false} /><TeamCreateModal visible={createVisible} onCancel={() => setCreateVisible(false)} /></section>;
+  return <section className="module-page page-content team-page"><PageHeader title="团队" actions={<Button type="primary" icon={<IconPlus />} onClick={() => setCreateVisible(true)}>新建团队</Button>} /><div className="filter-bar"><Input className="module-search" prefix={<IconSearch />} placeholder="搜索团队" value={query} onChange={setQuery} /></div><Table rowKey="id" columns={columns} data={teams} pagination={false} /><TeamCreateModal visible={createVisible} onCancel={() => setCreateVisible(false)} onCreated={(team) => { setCreateVisible(false); setCreatedTeam(team); }} /><TeamCreatedModal team={createdTeam} onClose={() => setCreatedTeam(undefined)} onCreateAnother={() => { setCreatedTeam(undefined); setCreateVisible(true); }} /><Modal visible={Boolean(deletingTeam)} title="删除团队？" className="team-delete-modal" width={480} okText="删除" cancelText="取消" okButtonProps={{ status: 'danger' }} onCancel={() => setDeletingTeam(undefined)} onOk={confirmDeleteTeam}><div className="team-delete-content"><p>删除后将无法恢复，但不会删除团队中的客服。</p><p>确定删除「<strong>{deletingTeam?.name}</strong>」吗？</p></div></Modal></section>;
 }
 
 export function TeamDetailPage() {
@@ -135,12 +146,10 @@ export function TeamDetailPage() {
   const defaultTeam = isDefaultTeam(current);
   const dirty = JSON.stringify(current) !== JSON.stringify(draft);
   const displayMembers = draft.members.filter((member) => member.name.includes(query.trim()));
-  const setPriority = (memberId: string, priority: TeamPriority) => setDraft((team) => team ? { ...team, members: team.members.map((member) => member.id === memberId ? { ...member, priority } : member) } : team);
   const remove = (memberId: string) => setDraft((team) => team ? { ...team, members: team.members.filter((member) => member.id !== memberId) } : team);
   const addMembers = (members: Candidate[]) => { setDraft((team) => team ? { ...team, members: [...team.members, ...members] } : team); setPickerVisible(false); };
   const columns = [
     { title: '名称', dataIndex: 'name', render: (_: unknown, member: TeamMember) => <MemberIdentity member={member} /> },
-    { title: '优先级', key: 'priority', render: (_: unknown, member: TeamMember) => <PrioritySelector value={member.priority} disabled={defaultTeam} onChange={(priority) => setPriority(member.id, priority)} /> },
     { title: '', key: 'remove', align: 'right' as const, render: (_: unknown, member: TeamMember) => !defaultTeam && <Button type="text" icon={<IconDelete />} aria-label={`移除${member.name}`} onClick={() => remove(member.id)} /> },
   ];
   return <section className="module-page page-content team-page team-detail-page"><div className="team-detail-nav"><Button type="text" onClick={() => navigate('/teams')}>← 返回</Button></div><div className="team-detail-editor"><section className="team-basic-info"><TeamAvatar team={draft} size={56} /><div><label className="team-field-label">名称</label><Input value={draft.name} maxLength={32} disabled={defaultTeam} onChange={(name) => setDraft((team) => team ? { ...team, name } : team)} /></div></section><section className="team-members-section"><div className="team-members-head"><h2>{draft.members.length} 名成员</h2>{!defaultTeam && <Button type="primary" icon={<IconPlus />} onClick={() => setPickerVisible(true)}>添加成员</Button>}</div><div className="team-members-tools"><Input className="module-search" prefix={<IconSearch />} placeholder="搜索团队成员" value={query} onChange={setQuery} /></div><Table rowKey="id" columns={columns} data={displayMembers} pagination={false} /></section></div>{dirty && <div className="team-sticky-actions"><Button onClick={() => setDraft(copyTeam(current))}>取消</Button><Button type="primary" onClick={() => { dispatch({ type: 'team.save', team: { ...draft, updatedAt: now() } }); }}>保存</Button></div>}<CandidatePicker visible={pickerVisible} title="添加成员" excludedIds={draft.members.map((member) => member.id)} onCancel={() => setPickerVisible(false)} onConfirm={addMembers} /></section>;

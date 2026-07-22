@@ -4,7 +4,7 @@ import { Button, Card, DatePicker, Descriptions, Divider, Drawer, Dropdown, Empt
 import { IconCopy, IconDelete, IconMore, IconPlus } from '@arco-design/web-react/icon';
 import { RichTextEditor } from '../components/RichTextEditor';
 import { PdfDocumentIcon } from '../components/PdfDocumentIcon';
-import { KnowledgeFileModal } from './ModulePages';
+import { KNOWLEDGE_DOCUMENT_MAX_SIZE, KnowledgeFileModal } from './ModulePages';
 import { updateFlow, updateGuards, useAppStore } from '../store';
 import { now } from '../mockData';
 import type { Agent, EnvironmentVariable, Flow, Guard, KnowledgeDocument, Session } from '../types';
@@ -61,8 +61,8 @@ export function KnowledgeSectionV2({ agent }: { agent: Agent }) {
   const addFiles = (files: File[]) => {
     let accepted = 0;
     for (const file of files) {
-      if (file.name.split('.').pop()?.toUpperCase() !== 'PDF') { toast.error(`${file.name} 仅支持 pdf 文档`); continue; }
-      if (file.size > 100 * 1024 * 1024) { toast.error(`${file.name} 超过 100 MB 限制`); continue; }
+      if (file.name.split('.').pop()?.toUpperCase() !== 'PDF') { toast.error(`${file.name} 仅支持 PDF 文档`); continue; }
+      if (file.size > KNOWLEDGE_DOCUMENT_MAX_SIZE) { toast.error(`${file.name} 超过 50 MB 限制`); continue; }
       const createdAt = now();
       const document: KnowledgeDocument = { id: makeId('doc'), type: 'PDF', name: file.name, source: file.name, size: file.size, creator: '当前用户', status: 'adding', content: '正在上传文档……', createdAt, updatedAt: createdAt };
       dispatch({ type: 'document.add', document });

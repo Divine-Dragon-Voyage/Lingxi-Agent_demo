@@ -138,6 +138,7 @@ export interface Session {
 }
 
 export interface AppState {
+  demoDataVersion?: number;
   agents: Agent[];
   teams: Team[];
   documents: KnowledgeDocument[];

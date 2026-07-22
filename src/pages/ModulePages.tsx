@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react';
 import type { ChangeEvent, DragEvent } from 'react';
-import { Button, Card, Checkbox, Dropdown, Empty, Form, Input, Menu, Modal, Select, Space, Switch, Table, Message } from '../components/ui';
+import { Button, Card, Checkbox, Dropdown, Empty, Form, Input, Menu, Modal, Select, Space, Switch, Table, Message, Upload } from '../components/ui';
 import { IconCheck, IconDelete, IconDown, IconExclamationCircle, IconLoading, IconMore, IconPlus, IconRight, IconUpload } from '@arco-design/web-react/icon';
 import { PageHeader } from '../components/PageHeader';
 import { PdfDocumentIcon } from '../components/PdfDocumentIcon';
@@ -10,30 +10,44 @@ import type { Channel, KnowledgeDocument, Skill } from '../types';
 
 const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const formatDate = (value: string) => value.replace('T', ' ').slice(0, 16);
+const formatDocumentName = (document: KnowledgeDocument) => document.name.toLowerCase().endsWith(`.${document.type.toLowerCase()}`) ? document.name : `${document.name}.${document.type.toLowerCase()}`;
+export const KNOWLEDGE_DOCUMENT_MAX_SIZE = 50 * 1024 * 1024;
+type KnowledgeUploadItem = { uid: string; originFile?: File };
 
 export function KnowledgeFileModal({ open, onClose, onAdd }: { open: boolean; onClose: () => void; onAdd: (files: File[]) => void }) {
-  const [files, setFiles] = useState<File[]>([]);
-  const reset = () => setFiles([]);
+  const [fileList, setFileList] = useState<KnowledgeUploadItem[]>([]);
+  const reset = () => setFileList([]);
   const close = () => { reset(); onClose(); };
-  const choose = (nextFiles?: FileList | null) => { if (nextFiles?.length) setFiles(Array.from(nextFiles)); };
-  const submit = () => { if (!files.length) { Message.warning('请选择要添加的文档'); return; } onAdd(files); close(); };
-  return <Modal open={open} title={<span className="modal-title-with-icon"><IconUpload />添加文档</span>} width={640} onCancel={close} onOk={submit} okText="添加文档" destroyOnHidden><input id="knowledge-file-modal-input" type="file" multiple hidden accept=".pdf,application/pdf" onChange={(event: ChangeEvent<HTMLInputElement>) => { choose(event.target.files); event.currentTarget.value = ''; }} /><div className={`knowledge-file-dropzone${files.length ? ' has-files' : ''}`} role="button" tabIndex={0} onClick={() => document.getElementById('knowledge-file-modal-input')?.click()} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') document.getElementById('knowledge-file-modal-input')?.click(); }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); choose(event.dataTransfer.files); }}><span className="knowledge-file-upload-icon"><IconUpload /></span>{files.length ? <><strong>已选择 {files.length} 个文档</strong><span>{files.map((file) => file.name).join('、')}</span></> : <><strong>点击或拖动文档上传</strong><span>支持的文件类型：pdf</span></>}</div></Modal>;
+  const validate = (file: File) => {
+    if (!file.name.toLowerCase().endsWith('.pdf')) { Message.error(`${file.name} 仅支持 PDF 文档`); return false; }
+    if (file.size > KNOWLEDGE_DOCUMENT_MAX_SIZE) { Message.error(`${file.name} 超过 50 MB 限制`); return false; }
+    return true;
+  };
+  const submit = () => {
+    const files = fileList.flatMap((item) => item.originFile ? [item.originFile] : []);
+    if (!files.length) { Message.warning('请选择要添加的文档'); return; }
+    onAdd(files);
+    close();
+  };
+  return <Modal open={open} title="添加文档" width={640} onCancel={close} onOk={submit} okText="添加文档" okButtonProps={{ disabled: !fileList.length }} destroyOnHidden><div className="knowledge-file-upload"><Upload drag multiple accept=".pdf,application/pdf" autoUpload={false} fileList={fileList} beforeUpload={validate} onChange={(nextList) => setFileList(nextList.filter((item) => item.originFile && validate(item.originFile)))} showUploadList={{ fileIcon: <PdfDocumentIcon />, startIcon: null }}><div className="knowledge-file-dropzone"><span className="knowledge-file-upload-icon"><IconUpload /></span><strong>点击或拖动文档上传</strong><span>支持的文件类型：PDF，最大文件大小：50 MB</span></div></Upload></div></Modal>;
 }
 
 export function KnowledgePageV2() {
   const { state, dispatch } = useAppStore();
   const [fileOpen, setFileOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<KnowledgeDocument>();
   const [query, setQuery] = useState('');
   const docs = state.documents.filter((doc) => doc.type === 'PDF' && doc.name.toLowerCase().includes(query.toLowerCase()));
+  const boundAgents = deleteTarget ? state.agents.filter((agent) => agent.draft.knowledgeIds.includes(deleteTarget.id) || agent.published?.knowledgeIds.includes(deleteTarget.id)) : [];
   const addFiles = (files: FileList | File[] | null) => {
     if (!files) return;
     let accepted = 0;
     for (const file of Array.from(files)) {
       const ext = file.name.split('.').pop()?.toUpperCase() || '';
-      if (ext !== 'PDF') { Message.error(`${file.name} 仅支持 pdf 文档`); continue; }
-      if (file.size > 100 * 1024 * 1024) { Message.error(`${file.name} 超过 100M 限制`); continue; }
+      if (ext !== 'PDF') { Message.error(`${file.name} 仅支持 PDF 文档`); continue; }
+      if (file.size > KNOWLEDGE_DOCUMENT_MAX_SIZE) { Message.error(`${file.name} 超过 50 MB 限制`); continue; }
       const createdAt = now();
-      const document: KnowledgeDocument = { id: makeId('doc'), type: 'PDF', name: file.name, source: file.name, size: file.size, creator: '当前用户', status: 'adding', content: '正在上传文档……', createdAt, updatedAt: createdAt };
+      const document: KnowledgeDocument = { id: makeId('doc'), type: 'PDF', name: file.name, source: file.name, size: file.size, creator: 'Owen', status: 'adding', content: '正在上传文档……', createdAt, updatedAt: createdAt };
       dispatch({ type: 'document.add', document });
       accepted += 1;
       window.setTimeout(() => dispatch({ type: 'document.update', id: document.id, patch: { content: '正在切片处理……' } }), 450);
@@ -48,8 +62,15 @@ export function KnowledgePageV2() {
     window.setTimeout(() => dispatch({ type: 'document.update', id: doc.id, patch: { content: '正在进行数据处理……', updatedAt: now() } }), 900);
     window.setTimeout(() => dispatch({ type: 'document.update', id: doc.id, patch: { status: 'success', content: `文档「${doc.name}」处理成功。`, updatedAt: now() } }), 1400);
   };
-  const more = (doc: KnowledgeDocument) => <Menu>{doc.status === 'failed' && <Menu.Item key="retry" onClick={() => retry(doc)}>重新处理</Menu.Item>}<Menu.Item key="delete" className="danger-menu-item" onClick={() => Modal.confirm({ title: '删除文档？', content: '删除后，相关智能体将自动解除绑定。', onOk: () => { dispatch({ type: 'document.delete', id: doc.id }); Message.success('文档已删除'); } })}>删除文档</Menu.Item></Menu>;
-  return <div className="page-content module-page"><PageHeader title="知识库" actions={<Button type="primary" icon={<IconUpload />} onClick={() => setFileOpen(true)}>添加文档</Button>} /><div className="module-toolbar"><Input.Search value={query} onChange={setQuery} allowClear placeholder="搜索文档名称" /></div><Table rowKey="id" dataSource={docs} pagination={{ pageSize: 8 }} columns={[{ title: '名称', dataIndex: 'name', render: (value: string) => <div className="module-name-cell"><PdfDocumentIcon /><strong>{value}</strong></div> }, { title: '创建者', dataIndex: 'creator' }, { title: '创建时间', dataIndex: 'createdAt', render: (_: unknown, item: KnowledgeDocument) => formatDate(item.createdAt || item.updatedAt) }, { title: '状态', dataIndex: 'status', render: (value: KnowledgeDocument['status'], item: KnowledgeDocument) => value === 'success' ? <span className="knowledge-document-status success"><IconCheck />处理成功</span> : value === 'failed' ? <span className="knowledge-document-status failed"><IconExclamationCircle /><span>处理失败</span><small>{item.content}</small></span> : <span className="knowledge-document-status processing"><IconLoading />处理中</span> }, { title: '操作', width: 72, render: (_: unknown, item: KnowledgeDocument) => <Dropdown droplist={more(item)} trigger="click"><Button type="text" className="table-more-button" icon={<IconMore />} aria-label={`${item.name} 更多操作`} /></Dropdown> }]} /><KnowledgeFileModal open={fileOpen} onClose={() => setFileOpen(false)} onAdd={addFiles} /></div>;
+  const confirmDelete = () => {
+    if (!deleteTarget || boundAgents.length) { setDeleteTarget(undefined); return; }
+    dispatch({ type: 'document.delete', id: deleteTarget.id });
+    setDeleteTarget(undefined);
+    Message.success('文档已删除');
+  };
+  const deleteDocument = (doc: KnowledgeDocument) => setDeleteTarget(doc);
+  const more = (doc: KnowledgeDocument) => <Menu>{doc.status === 'failed' && <Menu.Item key="retry" onClick={() => retry(doc)}>重新处理</Menu.Item>}<Menu.Item key="delete" className="danger-menu-item" onClick={() => deleteDocument(doc)}>删除文档</Menu.Item></Menu>;
+  return <div className="page-content module-page"><PageHeader title="知识库" actions={<Button type="primary" icon={<IconUpload />} onClick={() => setFileOpen(true)}>添加文档</Button>} /><div className="module-toolbar"><Input.Search value={query} onChange={setQuery} allowClear placeholder="搜索文档名称" /></div><Table rowKey="id" dataSource={docs} pagination={{ pageSize: 8 }} columns={[{ title: '名称', dataIndex: 'name', render: (value: string) => <div className="module-name-cell"><PdfDocumentIcon /><strong>{value}</strong></div> }, { title: '创建者', dataIndex: 'creator' }, { title: '创建时间', dataIndex: 'createdAt', render: (_: unknown, item: KnowledgeDocument) => formatDate(item.createdAt || item.updatedAt) }, { title: '状态', dataIndex: 'status', render: (value: KnowledgeDocument['status'], item: KnowledgeDocument) => value === 'success' ? <span className="knowledge-document-status success"><IconCheck />处理成功</span> : value === 'failed' ? <span className="knowledge-document-status failed"><IconExclamationCircle /><span>处理失败</span><small>{item.content}</small></span> : <span className="knowledge-document-status processing"><IconLoading />处理中</span> }, { title: '操作', width: 72, render: (_: unknown, item: KnowledgeDocument) => <Dropdown droplist={more(item)} trigger="click"><Button type="text" className="table-more-button" icon={<IconMore />} aria-label={`${item.name} 更多操作`} /></Dropdown> }]} /><KnowledgeFileModal open={fileOpen} onClose={() => setFileOpen(false)} onAdd={addFiles} /><Modal open={Boolean(deleteTarget)} title={boundAgents.length ? '暂时无法删除文档' : '删除文档？'} okText={boundAgents.length ? '我知道了' : '删除文档'} hideCancel={Boolean(boundAgents.length)} onCancel={() => setDeleteTarget(undefined)} onOk={confirmDelete} destroyOnHidden>{deleteTarget && (boundAgents.length ? <div className="knowledge-delete-blocked"><p>「{formatDocumentName(deleteTarget)}」已被以下 AI 客服绑定。请先在对应 AI 客服的「知识库」中解除绑定，再返回删除。</p><ul>{boundAgents.map((agent) => <li key={agent.id}>{agent.name || '未命名'}</li>)}</ul></div> : <>确认删除「{formatDocumentName(deleteTarget)}」？删除后无法恢复。</>)}</Modal></div>;
 }
 
 function SkillAvatar({ name }: { name: string }) { return <span className="skill-avatar">{name.slice(0, 1).toUpperCase()}</span>; }
