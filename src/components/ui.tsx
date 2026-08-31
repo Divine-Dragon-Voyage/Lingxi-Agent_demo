@@ -17,6 +17,7 @@ import {
   Message,
   Modal as ArcoModal,
   Popconfirm as ArcoPopconfirm,
+  Popover,
   Radio,
   Slider as ArcoSlider,
   Select,
@@ -43,7 +44,7 @@ const normalizeColor = (color: unknown) => ({
   default: 'gray',
 }[String(color)] || color);
 
-export { Avatar, Badge, Card, Checkbox, Col, DatePicker, Divider, Dropdown, Layout, Menu, Message, Radio, Row, Select, Space, Upload };
+export { Avatar, Badge, Card, Checkbox, Col, DatePicker, Divider, Dropdown, Layout, Menu, Message, Popover, Radio, Row, Select, Space, Upload };
 
 const CompatEmpty = ({ children, image: _image, ...props }: any) => <><ArcoEmpty {...props} /><div className="empty-action">{children}</div></>;
 CompatEmpty.PRESENTED_IMAGE_SIMPLE = null;

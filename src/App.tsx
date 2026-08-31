@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent, MouseEvent } from 'react';
-import { Avatar, Button, Card, Checkbox, Col, DatePicker, Descriptions, Divider, Drawer, Dropdown, Empty, Form, Input, Menu, Modal, Popconfirm, Radio, Row, Select, Slider, Space, Switch, Table, Tag, Message, Tooltip } from './components/ui';
-import { IconArrowLeft, IconCopy, IconDelete, IconEdit, IconEye, IconLink, IconMore, IconPlus, IconRefresh, IconSave, IconSend, IconThunderbolt, IconUpload } from '@arco-design/web-react/icon';
+import { Avatar, Button, Card, Checkbox, Col, DatePicker, Descriptions, Divider, Drawer, Dropdown, Empty, Form, Input, Menu, Modal, Popconfirm, Popover, Radio, Row, Select, Slider, Space, Switch, Table, Tag, Message, Tooltip } from './components/ui';
+import { IconArrowLeft, IconClose, IconCopy, IconDelete, IconEdit, IconEye, IconLink, IconMore, IconPlus, IconRefresh, IconSave, IconSend, IconSettings, IconThunderbolt, IconUpload } from '@arco-design/web-react/icon';
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { TeamSelect } from './components/TeamSelect';
@@ -134,8 +134,34 @@ void TestDrawer;
 function AgentPreviewPanel({ agent }: { agent: Agent }) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<{ role: 'user' | 'agent'; content: string }[]>([]);
-  const run = () => { const message = input.trim(); if (!message) return; const reply = message.includes('订单') || message.includes('物流') ? '请提供订单号，我来帮你查询物流进度。' : message.includes('人工') ? '好的，我正在为你转接人工客服。' : '我会根据当前草稿配置继续为你处理这个问题。'; setMessages((prev) => [...prev, { role: 'user', content: message }, { role: 'agent', content: reply }]); setInput(''); };
-  return <aside className="agent-preview-panel"><div className="preview-panel-head"><h2>预览与测试</h2></div><div className="preview-panel-messages">{messages.length ? messages.map((item, index) => <div className={`preview-message ${item.role}`} key={`${item.role}-${index}`}><span>{item.content}</span></div>) : <div className="preview-panel-empty"><img src={agent.avatar || AVATAR_PLACEHOLDER} alt="" /><strong>{agent.name || '未命名AI客服'}</strong><span>输入问题开始测试</span></div>}</div><div className="preview-panel-input"><Input value={input} onChange={setInput} onPressEnter={run} placeholder="输入消息……" /><Button type="primary" icon={<IconSend />} aria-label="发送" onClick={run} /></div></aside>;
+  const [playerId, setPlayerId] = useState('');
+  const [playerDraft, setPlayerDraft] = useState('');
+  const [playerOpen, setPlayerOpen] = useState(false);
+  const commitPlayerId = (nextPlayerId: string) => {
+    setPlayerId(nextPlayerId);
+    setMessages([]);
+    setInput('');
+    setPlayerOpen(false);
+  };
+  const applyPlayerId = () => {
+    const nextPlayerId = playerDraft.trim();
+    commitPlayerId(nextPlayerId);
+  };
+  const run = () => {
+    const message = input.trim();
+    if (!message) return;
+    const needsPlayerData = ['提款', '充值', '到账'].some((keyword) => message.includes(keyword));
+    const reply = needsPlayerData
+      ? playerId ? `已使用玩家 ID ${playerId} 模拟查询该玩家的业务数据。` : '请先配置测试玩家，再查询该玩家的业务数据。'
+      : message.includes('订单') || message.includes('物流') ? '请提供订单号，我来帮你查询物流进度。'
+        : message.includes('人工') ? '好的，我正在为你转接人工客服。'
+          : '我会根据当前草稿配置继续为你处理这个问题。';
+    setMessages((prev) => [...prev, { role: 'user', content: message }, { role: 'agent', content: reply }]);
+    setInput('');
+  };
+  const playerContent = <div className="preview-player-popover"><div className="preview-player-popover-head"><div className="preview-player-title">测试设置</div><button type="button" className="preview-player-close" aria-label="关闭测试设置" onClick={() => setPlayerOpen(false)}><IconClose /></button></div><div className="preview-player-field"><label className="preview-player-label" htmlFor="preview-player-id">玩家 ID</label><Input id="preview-player-id" autoFocus value={playerDraft} onChange={setPlayerDraft} placeholder="请输入玩家 ID" allowClear /></div><div className="preview-player-actions"><Button onClick={() => setPlayerOpen(false)}>取消</Button><Button type="primary" onClick={applyPlayerId}>确定并重置对话</Button></div></div>;
+  const playerTrigger = <button type="button" className={`preview-player-trigger${playerId ? ' is-configured' : ''}`} aria-label={`测试设置，${playerId ? '已配置' : '未配置'}`} title={playerId ? `玩家 ID：${playerId}` : undefined}><IconSettings /><span>测试设置</span>{playerId && <span className="preview-player-dot" aria-hidden="true" />}</button>;
+  return <aside className="agent-preview-panel"><div className="preview-panel-head"><h2>预览与测试</h2><Popover trigger="click" position="br" style={{ maxWidth: 'calc(100vw - 32px)' }} triggerProps={{ autoFitPosition: true, boundaryDistance: { right: 16, bottom: 16 } }} content={playerContent} popupVisible={playerOpen} onVisibleChange={(visible: boolean) => { setPlayerOpen(visible); if (visible) setPlayerDraft(playerId); }}>{playerTrigger}</Popover></div><div className="preview-panel-messages">{messages.length ? messages.map((item, index) => <div className={`preview-message ${item.role}`} key={`${item.role}-${index}`}><span>{item.content}</span></div>) : <div className="preview-panel-empty"><img src={agent.avatar || AVATAR_PLACEHOLDER} alt="" /><strong>{agent.name || '未命名AI客服'}</strong><span>输入问题开始测试</span></div>}</div><div className="preview-panel-input"><Input value={input} onChange={setInput} onPressEnter={run} placeholder="输入消息……" /><Button type="primary" icon={<IconSend />} aria-label="发送" onClick={run} /></div></aside>;
 }
 
 function MonitorSection({ agent }: { agent: Agent }) {
