@@ -1,5 +1,257 @@
 # 灵犀智能体原型开发路线
 
+## 2026-09-18 GitHub Pages 部署准备（进行中）
+
+- 已确认项目技术栈为 React + TypeScript + Vite + Arco Design，构建命令为 `npm run build`。
+- 已完成公开前敏感信息扫描：未发现 `.env`、真实 API Key、Token、密码或私钥；代码中的 `Access Token` 仅为渠道配置模拟表单字段。
+- 已补充 GitHub Pages 自动部署工作流 `.github/workflows/deploy-pages.yml`，使用 GitHub Actions 构建 `dist` 并部署 Pages。
+- 已修正 GitHub Pages 兼容配置：Vite 根据 `GITHUB_REPOSITORY` 自动设置 `base`，路由切换为 `HashRouter`，公开目录静态资源改为跟随 `import.meta.env.BASE_URL`。
+- 已更新 `.gitignore`，排除本地 Playwright、浏览器 profile 和输出缓存，避免将本地验证数据新增进公开仓库。
+- 本地验证通过：`npm install`、`npm run build`、带 `GITHUB_REPOSITORY=Divine-Dragon-Voyage/Lingxi-Agent_demo` 的 Pages 构建、Vite 生产预览；Playwright 验证首页、知识库、渠道管理、静态资源和子页面刷新，控制台 0 错误。
+- 待用户处理：GitHub CLI 当前登录态失效，需要重新登录；公开发布和推送到现有远端仓库 `Divine-Dragon-Voyage/Lingxi-Agent_demo` 仍待确认。
+
+## 2026-09-17 工作流画布与 AI Agent 绑定（已完成）
+
+- 已确认增量需求记录于 `prd/workflow_demo_prd.md`，并在 `CLAUDE.md` 和当前 PRD 中明确其优先级；保留现有 Arco、设计 Token 与统一导航。
+- `/workflows` 替换占位页：支持名称／触发器搜索、新建必填校验、名称旁发布状态、分页、复制草稿、编辑和二次确认删除。内置订单进度查询（已发布）与售后转人工（草稿）示例。
+- `/workflows/:id` 使用项目级 `@xyflow/react`：可拖入或点击添加节点、移动、连线、编辑配置、删除节点／连线、缩放、适应画布和小地图；开始节点不可删除。包含开始、结束、AI 任务、信息收集、接口调用、条件分支、发送回复、转人工八种节点。
+- 工作流经统一 reducer 自动保存，localStorage 刷新恢复；保留旧本地数据并为无工作流字段的历史数据补充示例。保存失败保留编辑内容、展示重试，未保存成功禁止发布。
+- 草稿和发布快照隔离；发布校验名称、触发器、节点必填、JSON、团队引用、重复收集字段、连通性、分支出口和循环；可定位错误节点。发布成功后才可绑定，继续编辑不影响 Agent 使用的已发布内容。
+- Agent 工作流页复用知识库绑定节奏，支持搜索、多选已发布工作流、查看发布版、确认解绑；操作写入 Agent 草稿，沿用 Agent 发布生效规则。被草稿或已发布 Agent 引用的工作流禁止删除，并列出引用者。
+- Agent 查看工作流为只读发布快照，保留返回原 Agent 的路径；手机工作流页自动收起壳层侧栏，节点面板可收起，小地图在窄屏隐藏，避免遮挡画布控件。
+- 验证通过：`npm.cmd run build`、`oxlint src`（保留既有 Fast Refresh 警告）、新增工作流源码严格 lint、`git diff --check`。默认 `npm run lint` 会扫描已有 `output` 浏览器缓存，已停止该扫描并以源码检查替代；未改动历史缓存。
+- Playwright 实测通过：创建必填校验、无连线发布失败、添加／拖入／拖动节点、手动连线、节点和连线删除确认／取消、发布与刷新、草稿隔离、绑定发布版、只读查看、解绑确认／取消、已发布 Agent 引用保护、复制／删除、搜索、保存失败与重试、发布候选过滤。规则校验覆盖无效 JSON、缺分支、重复字段、孤立节点、循环及失效团队。
+- 已检查 1440×1000 和 390×844 的列表、弹窗、画布与 Agent 页面截图，无页面横向溢出；修复 React Flow 尺寸未回传导致的拖拽警告，小地图节点正常渲染，回归无 React Flow 警告与页面未捕获异常。Arco 在 React 19 开发模式下仍有 `element.ref` 兼容提示，未扩大范围修改依赖。
+- 回归脚本与截图：`output/playwright/workflow-check.js`、`workflow-edge-check.js`、`workflow-*.png`；测试使用隔离浏览器，不修改用户浏览器数据。本地服务 `http://localhost:5173/workflows` 已验证 HTTP 200。
+- 演示边界：不请求真实业务接口、不执行真实 AI 或流程引擎，接口返回内容为可编辑的模拟 JSON。无新增待确认事项。
+
+## 2026-09-17 设置模块与聊天超时配置（已完成）
+
+- 侧边栏新增一级菜单「设置」（渠道后），路由 `/settings`；页面为左侧配置栏 + 右侧配置内容的双栏结构，复用渠道页节奏。
+- 「设置」菜单项改为固定在侧边栏最底部，与参考产品一致。
+- 配置栏含「收件箱」分组，标题右侧提供收起／展开图标，展开后显示「聊天超时」配置项。
+- 聊天超时配置：默认勾选、默认 15 分钟；选项行为左侧文案「如果没有新消息，超过以下时长后关闭会话」（关闭会话加粗，对应原文 close chat）、右侧分钟数上下调节输入框（范围 1–1440）；取消勾选时输入框隐藏；副标题为「选择会话没有新消息时的处理方式。」。
+- 说明文字与配置卡片在内容区水平居中；修改勾选或分钟数后底部出现悬浮置底的「取消／保存」操作条，水平居中并带上投影区分内容区；保存写入 store 并 toast 提示，取消恢复上次保存值；配置随 localStorage 持久化，旧数据自动补默认值。
+- `npm run build` 通过；lint 仅保留既有 Fast Refresh 警告；Playwright 已实际核验菜单贴底、分组收起展开、内容居中、操作条置底居中、保存 toast、取消恢复和勾选联动。
+
+## 2026-09-17 渠道列表状态列改名（已完成）
+
+- 渠道类型列表表头「状态」改为「启用状态」，与列内启停开关语义一致。
+- `npm run build` 通过。
+
+## 2026-09-17 AI 客服详情页精简与预览测试升级（已完成）
+
+- 个人资料隐藏团队字段（数据保留）；移除「记忆」和「转人工」配置区块，发布校验同步去掉转人工依赖。
+- 回复语言选项调整为简体中文／繁体中文／英语／越南语／泰语／高棉语／缅甸语／老挝语，英语带「默认」标签并作为默认值；旧本地存储中的历史语言值在读取时无损归一为英语。
+- 详情左侧菜单新增「工作流」（知识库后，当前为「暂无工作流」空态，后续绑定资源中心工作流）和「接待设置」（工作流后）；接待设置提供欢迎语开关，默认关闭，开启后出现输入框并支持 500 字计数。
+- 预览与测试面板移除「测试设置」玩家 ID 配置；消息改用与收件箱一致的头像＋作者名＋气泡＋时间结构，客户消息在右、客服回复在左；输入框支持上传图片，标题右侧新增清除全部消息按钮。
+- 修复预存的 Arco `Message` 等静态方法在 React 19 下失效问题：入口调用 `setCreateRoot` 注入 `react-dom/client` 的 `createRoot`，全站 toast 反馈恢复正常。
+- `npm run build` 与 `oxlint` 通过；Playwright 已实际核验菜单四项、语言下拉、欢迎语开关交互、消息收发站位、图片上传与清除反馈。
+
+## 2026-09-17 左侧菜单信息架构调整（已完成）
+
+- 左侧一级菜单「AI 客服」调整为「AI Agents」，点击后直接进入原客服管理列表页 `/agents`。
+- 新增一级菜单「资源中心」，下挂「知识库」和「工作流」两个子菜单；知识库继续复用原 `/knowledge` 页面。
+- 新增 `/workflows` 工作流占位页，当前展示“工作流后续新增”的空状态，避免点击后空白。
+- `npm.cmd run build` 通过；`oxlint src/App.tsx src/components/AppShell.tsx src/pages/ModulePages.tsx --max-warnings=0` 通过；`/agents`、`/knowledge`、`/workflows` 均返回 HTTP 200。
+
+## 2026-09-17 渠道连接校验放宽（已完成）
+
+- Telegram 新渠道连接校验调整为基础格式校验：`数字:非空 token` 即可模拟连接成功，不再要求冒号后至少 8 位。
+- 保留 `fail` / `invalid` 关键词触发失败态，方便演示异常校验场景。
+- `npm.cmd run build` 通过；`oxlint src/pages/ChannelsPage.tsx --max-warnings=0` 通过；`/channels/telegram/new` 返回 HTTP 200。
+
+## 2026-09-17 收件箱标题分割线与 AI 客服头像同步（已完成）
+
+- 去掉收件箱左侧栏大标题「收件箱」与下方「聊天」会话类型之间的分割线。
+- 处理中 AI 客服列表头像改为从 AI Agent 实体同步，优先展示已配置头像；无头像时保留机器人兜底图标。
+- 筛选浮层中的 AI Agent 头像同步使用同一套头像来源，避免同一页面展示不一致。
+- `npm.cmd run build` 通过；`oxlint src/pages/InboxPage.tsx src/styles/global.css --max-warnings=0` 通过；`/inbox?status=processing&conversation=conv-p-001` 返回 HTTP 200。
+
+## 2026-09-17 渠道空状态搜索框隐藏（已完成）
+
+- 渠道类型列表为空时不再展示「搜索渠道名称」搜索框，仅保留空状态插画、文案和添加新连接按钮。
+- 渠道已有连接但搜索无结果时继续保留搜索框，方便用户清空或调整关键词。
+- `npm.cmd run build` 通过；`oxlint src/pages/ChannelsPage.tsx --max-warnings=0` 通过；`/channels/livechat`、`/channels/telegram` 均返回 HTTP 200。
+
+## 2026-09-17 渠道启停反馈提示修复（已完成）
+
+- 渠道列表启停开关不再只依赖全局 `Message`，新增渠道页内部固定反馈提示条，点击启用／停用后会在页面顶部中间稳定显示「渠道已启用」或「渠道已停用」。
+- 未配置接待 AI Agent 时阻止启用，并在同一反馈提示条展示「请先配置接待 AI Agent 后再启用渠道」。
+- `npm.cmd run build` 通过；`oxlint src/pages/ChannelsPage.tsx src/styles/global.css --max-warnings=0` 通过；`/channels/livechat`、`/channels/telegram` 均返回 HTTP 200。
+
+## 2026-09-17 渠道接待 AI Agent 下拉修复（已完成）
+
+- 将渠道添加／编辑弹窗中的「接待 AI Agent」从 Arco Select 浮层改为弹窗内部自定义下拉面板，点击选择框后在当前字段下方展开 Agent 列表，不再依赖浮层挂载和 z-index。
+- 下拉选项继续展示 AI 客服圆形头像与名称，选中后同步写入渠道配置草稿。
+- `npm.cmd run build` 通过；`oxlint src/pages/ChannelsPage.tsx src/styles/global.css --max-warnings=0` 通过；`/channels/livechat/new`、`/channels/telegram/new` 均返回 HTTP 200。
+
+## 2026-09-17 渠道搜索框与按钮文字修正（已完成）
+
+- 渠道列表搜索框外层工具栏与 Arco 输入组件均强制收敛为 244px，避免被父级容器拉伸成通栏。
+- 「添加新连接」按钮及其内部图标、文字统一强制为白色。
+- `npm.cmd run build` 通过；源码断言确认 `.channel-list-toolbar` 与 `.channel-add-button` 样式已落地；`/channels/livechat`、`/channels/telegram` 均返回 HTTP 200。
+
+## 2026-09-17 渠道页面第二轮细节修复（已完成）
+
+- 渠道栏与渠道内容栏标题高度收敛到 56px，与其他菜单栏标题节奏保持一致，并缩小标题与内容的首屏间距。
+- 渠道列表搜索框继续保持与知识库页面一致的 244px 宽度；列表区域保持左右 24px 内容边距。
+- 渠道启停开关继续触发成功／警告消息提示；未配置接待 AI Agent 时阻止启用并提示原因。
+- 「添加新连接」按钮文字改为白色，避免主按钮文字呈灰色。
+- 渠道添加／编辑弹窗回归通用弹窗标题尺寸，移除标题下方描述文案；标题仍保留渠道 Logo +「接入／编辑」+ 渠道名称。
+- 接待 AI Agent 下拉选择器弹层改为挂载到 `document.body`，并补充弹层 z-index，避免被弹窗容器遮挡导致点击无反应。
+- 渠道卡片描述与按钮之间补充间距，未连接按钮改为更小的 32px 白底描边按钮。
+- `npm.cmd run build` 通过；`oxlint src/pages/ChannelsPage.tsx src/styles/global.css --max-warnings=0` 通过；`/channels`、`/channels/livechat`、`/channels/telegram`、`/channels/livechat/new` 均返回 HTTP 200。
+
+## 2026-09-17 渠道列表名称列精简（已完成）
+
+- 渠道类型管理页的「渠道名称」列去掉渠道 Logo，仅展示渠道名称文本；左侧渠道菜单、全部渠道卡片和接入弹窗标题中的渠道 Logo 保持不变。
+- `npm.cmd run build` 通过；`oxlint src/pages/ChannelsPage.tsx --max-warnings=0` 通过。
+
+## 2026-09-17 渠道页面视觉细节修复（已完成）
+
+- 渠道列表搜索框改为与知识库页面一致的 244px 宽度，并让列表区域保留左右 24px 内容边距，不再通栏贴边。
+- 修复「添加新连接」按钮文字掉字问题，按钮保持单行展示「+ 添加新连接」。
+- 接待 AI Agent 字段头像改为圆形，并继续读取 AI 客服实体头像，保证与 AI 客服模块同步。
+- 渠道栏标题高度与内容区标题统一为 72px；缩小标题与菜单间距；左侧内菜单「渠道」改为「全部」。
+- 渠道接入弹窗标题改为「渠道 Logo + 接入/编辑 + 渠道名称」，字段与输入框改为上下布局，并移除重复关闭按钮。
+- 全部渠道卡片改为一行三列比例，未连接按钮调整为白底描边样式。
+- `npm.cmd run build` 通过；`oxlint src/pages/ChannelsPage.tsx src/styles/global.css --max-warnings=0` 通过；`/channels`、`/channels/livechat`、`/channels/telegram`、`/channels/livechat/new` 均返回 HTTP 200。
+
+## 2026-09-17 渠道模块二轮高保真优化（已完成）
+
+- 渠道内页结构优化：左侧渠道标题与渠道类型归入同一栏，右侧内容区用分割线隔开；左侧「全部渠道」改为「渠道」，右侧仍显示「全部渠道」。
+- 全部渠道卡片改为更接近 Text 风格的大圆角卡片，并将描述文案调整为中文：「Livechat 消息会以会话形式进入你的收件箱。」和「Telegram 消息会以会话形式进入你的收件箱。」。
+- 渠道列表新增渠道名称搜索；表格字段调整为「渠道名称 / 接待 AI Agent / 创建时间 / 状态 / 操作」，接待 AI Agent 由头像与名称组成，状态改为开关并补齐启停消息提示。
+- 渠道配置从全页改为弹窗形式，字段名称中文化，保留 Access Token、Bot Token、Webhook URL 等必要英文技术字段；新建与编辑继续模拟连接校验。
+- 列表更多菜单仅保留「编辑、删除」；删除渠道改为输入渠道名称二次确认，文案说明入站消息停止、历史会话保留。
+- 渠道类型无数据时在列表区展示 PNG 空状态插画与引导文案，插画资产保存为 `src/assets/channel-empty-state.png`。
+- `npm.cmd run build` 通过；`oxlint src/pages/ChannelsPage.tsx src/styles/global.css src/App.tsx src/components/AppShell.tsx --max-warnings=0` 通过；`/channels`、`/channels/livechat`、`/channels/telegram`、`/channels/livechat/new` 均返回 HTTP 200。
+
+## 2026-09-17 渠道子页面空白修复（已完成）
+
+- 修复渠道模块子路由解析错误：`/channels/livechat`、`/channels/telegram`、`/channels/livechat/new` 现在会正确识别渠道类型与页面模式，不再进入空白页面。
+- `npm.cmd run build` 通过；`oxlint src/pages/ChannelsPage.tsx --max-warnings=0` 通过；`/channels`、`/channels/livechat`、`/channels/telegram`、`/channels/livechat/new` 均返回 HTTP 200。
+
+## 2026-09-17 渠道模块高保真 Demo 新增（已完成）
+
+- 左侧导航新增一级「渠道」入口并排在最后，路由切换到新的 `/channels/*` 渠道模块页面。
+- 新增「全部渠道」卡片页，支持 LiveChat 与 Telegram 两类渠道，展示描述、已连接数量，并根据连接状态提供「连接／管理」入口。
+- 新增 LiveChat / Telegram 渠道类型管理页，按创建时间倒序展示渠道名称、AI Agent、状态和更多操作，支持编辑、启用、停用、删除。
+- 新增渠道配置页：LiveChat 支持 Channel Name、Access Token、Webhook URL、AI Agent；Telegram 支持 Channel Name、Bot Token、AI Agent；新增用「连接」，编辑用「保存」且未修改时置灰。
+- 删除渠道改为输入渠道名称二次确认；删除仅移除渠道配置，保留历史会话数据；删除 AI Agent 后渠道保留、AI Agent 显示未配置并自动停用，未配置 AI Agent 的渠道不能直接启用。
+- Mock 数据补充 Telegram 渠道并兼容旧 LiveChat 渠道数据；渠道数据继续使用 localStorage 持久化。
+- `npm.cmd run build` 通过；`oxlint src/pages/ChannelsPage.tsx src/components/AppShell.tsx src/App.tsx src/types.ts src/mockData.ts src/styles/global.css --max-warnings=0` 通过；`/channels`、`/channels/livechat`、`/channels/telegram`、`/channels/telegram/new` 均返回 HTTP 200。
+
+## 2026-09-17 收件箱搜索区分割线移除（已完成）
+
+- 去掉会话列表中搜索框工具区与下方会话列表之间的横向分割线，使搜索区和会话列表过渡更干净。
+- `npm.cmd run build` 通过；源码确认 `.inbox-list-tools` 已无 `border-bottom`；`/inbox?conversation=conv-p-001` 返回 HTTP 200。
+- `oxlint src/styles/global.css --max-warnings=0` 不适用于单独 CSS 文件，返回「No files found to lint」。
+
+## 2026-09-17 收件箱 AI 客服导航与筛选解耦（已完成）
+
+- 修复左侧「处理中」下选中 AI 客服时，会话列表 Filter 同步出现 AI Agent 筛选 chip 的问题。
+- 左侧 AI 客服导航继续使用 URL 参数 `agent`，只负责当前处理列表的导航过滤与选中态。
+- 会话列表 Filter 中的 AI Agent 筛选改用独立 URL 参数 `filterAgent`，与左侧导航互不联动。
+- 历史会话切换继续清空会话列表筛选，避免切换会话时残留筛选 chip。
+- `npm.cmd run build` 通过；`oxlint src/pages/InboxPage.tsx --max-warnings=0` 通过；`/inbox?status=processing&agent=account-agent&conversation=conv-p-008` 返回 HTTP 200。
+
+## 2026-09-17 收件箱 LiveChat Logo 资产替换（已完成）
+
+- 将收件箱渠道类型中的 LiveChat Logo 替换为用户上传的 `ico.png`，落地为项目资产 `src/assets/livechat-logo.png`。
+- 保持现有渠道展示逻辑不变，继续在会话列表与渠道筛选中展示「LiveChat Logo + 渠道名称」。
+- `npm.cmd run build` 通过；`oxlint src/pages/InboxPage.tsx src/styles/global.css src/types.ts src/inboxMockData.ts --max-warnings=0` 通过；`/inbox?status=processing&agent=account-agent&conversation=conv-p-008` 返回 HTTP 200。
+
+## 2026-09-16 收件箱渠道类型 Logo 优化（已完成）
+
+- 会话列表与渠道筛选中的渠道展示从通用线性图标调整为「渠道类型 Logo + 渠道名称」。
+- 渠道类型收敛为 `telegram` 与 `livechat` 两类：TG 充值渠道展示 Telegram 纸飞机 Logo，官网／在线客服类渠道展示 LiveChat 气泡 Logo。
+- 清理旧的 `web` / `line` 渠道类型和 `IconDesktop` / `IconSend` 旧图标引用，避免渠道类型与界面展示不一致。
+- `npm.cmd run build` 通过；`oxlint src/pages/InboxPage.tsx src/inboxMockData.ts src/types.ts src/styles/global.css --max-warnings=0` 通过；`/inbox?status=all&channel=web-payment&conversation=conv-p-001` 返回 HTTP 200。
+
+## 2026-09-16 收件箱标题字号与历史方向修正（已完成）
+
+- 收件箱栏、会话列表栏、会话详情栏标题字号从 18px 统一调整为 16px，标题栏高度继续保持一致。
+- 修正历史会话切换方向：会话按最新在前排序时，顶部「上一个会话」指向更早的历史会话，底部「下一个会话」指向更新的会话。
+- 保持无可切换方向时不显示按钮；例如最新会话滚动到底部不显示「下一个会话」，滚动到顶部显示可进入更早历史的「上一个会话」。
+- `npm.cmd run build` 通过；`oxlint src/pages/InboxPage.tsx src/styles/global.css --max-warnings=0` 通过；`/inbox?conversation=conv-p-001` 返回 HTTP 200。
+
+## 2026-09-16 收件箱标题栏与导航细节精修（已完成）
+
+- 会话列表栏标题区拆分为「标题栏」和「工具区」：标题栏仅保留当前状态标题、会话数量和 `Filter`，搜索框与筛选条件标签下移到标题栏下方，避免三栏顶部高度不一致。
+- 统一收件箱栏、会话列表栏、会话详情栏标题字号为 18px、标题栏高度为 56px，确保三栏顶部横向对齐。
+- 「处理中」展开／收起控件替换为纯 CSS chevron 图标，展开时旋转为向上状态，去除额外按钮感。
+- 保持会话详情历史切换规则：只有当前方向存在可切换会话时才显示对应按钮，不展示禁用态。
+- `npm.cmd run build` 通过；`oxlint src/pages/InboxPage.tsx src/inboxMockData.ts src/types.ts --max-warnings=0` 通过；`/inbox?conversation=conv-p-001` 返回 HTTP 200。
+
+## 2026-09-16 收件箱历史切换与多状态消息补强（已完成）
+
+- 保持会话详情中的「上一个会话／下一个会话」只在滚动到顶部或底部时出现；当前方向没有可切换会话时不渲染按钮，避免展示不可操作状态。
+- 通用会话 Mock 消息从 5～6 条扩展为 9～10 条，并改为按分钟递增生成时间，避免演示中后续消息时间早于前序消息。
+- 按支付查询、账号验证、VIP 权益、AI 已解决、转人工、超时关闭等不同状态生成差异化追问和 AI Agent 回复，让非重点会话也具备完整上下文。
+- `npm.cmd run build` 通过；`oxlint src/pages/InboxPage.tsx src/inboxMockData.ts src/types.ts --max-warnings=0` 通过；`/inbox?conversation=conv-p-001` 返回 HTTP 200。
+
+## 2026-09-16 收件箱会话切换按钮与消息丰富度修正（已完成）
+
+- 修复进入会话后上下会话切换按钮不出现的问题：默认滚动到最新消息时保留底部状态，历史会话存在时展示居中的「下一个会话」按钮。
+- 上一个／下一个会话按钮改为在聊天区域水平居中显示，滚动到顶部或底部才出现，离开边缘后自动隐藏。
+- 通用会话 Mock 生成逻辑从 3 条扩展为 5～6 条消息，覆盖客户追问、AI Agent 跟进和结束／转人工／超时系统消息，让非重点会话也更接近真实聊天记录。
+- `npm.cmd run build` 通过；`oxlint src/pages/InboxPage.tsx src/inboxMockData.ts src/types.ts --max-warnings=0` 通过；`/inbox?status=all&conversation=conv-p-001` 返回 HTTP 200。
+
+## 2026-09-16 收件箱客户图片消息与左右角色对齐（已完成）
+
+- 会话详情聊天区调整为客户消息在左侧、AI Agent／客服消息在右侧，头像与气泡方向同步更新。
+- 使用 `imagegen` 生成一张虚构的客户充值扣款凭证图片，并保存到 `src/assets/mock-payment-receipt.png` 作为项目内演示资产。
+- 收件箱 Mock 消息规则调整为客户支持发送文本与图片消息，AI Agent 暂仅支持文本消息；当前 `conv-p-001` 会话包含客户上传扣款截图的演示链路。
+- `npm.cmd run build` 通过；`oxlint src/pages/InboxPage.tsx src/inboxMockData.ts src/types.ts --max-warnings=0` 通过；`/inbox?status=all&conversation=conv-p-001` 返回 HTTP 200。
+
+## 2026-09-16 收件箱三栏工作台与会话气泡优化（已完成）
+
+- 收件箱页面取消独立顶部标题条，将「收件箱」放入左侧收件箱栏顶部；左侧栏、会话列表栏、会话详情栏改为同高平排显示。
+- 「收件箱」与「聊天」属于同一栏，通过分割线区分；「聊天」调整为弱一级副标题层级，视觉权重低于「收件箱」。
+- 「处理中」改为纯展开／收起分组，不再显示选中态和数量；展开按钮收敛为无背景纯箭头。
+- 会话列表卡片移除状态标签，仅保留客户名称、最近消息、渠道、AI Agent 和更新时间。
+- 会话详情背景改为纯白；客户消息气泡调整为浅灰色，AI 客服消息气泡调整为浅蓝色，贴近 Text Inbox 的聊天阅读体验。
+- 会话详情 Mock 消息扩展为多轮对话，并新增 AI 客服图片消息类型；重点覆盖当前处理会话和历史已解决会话。
+- 上一个／下一个会话切换按钮仅在消息区滚动到顶部或底部时出现，默认进入会话不固定展示。
+- AI 已解决会话的系统消息从「问题已解决，会话结束」调整为「会话结束」，最终展示为「会话结束 · 时间」。
+- `npm.cmd run build` 通过；`oxlint src/pages/InboxPage.tsx src/inboxMockData.ts src/types.ts --max-warnings=0` 通过；`/inbox?status=all&channel=web-payment&conversation=conv-r-002` 返回 HTTP 200。
+
+## 2026-09-16 收件箱工作台体验优化（已完成）
+
+- 收件箱顶部标题区移除描述文本，压缩标题高度并保留通栏分割线，让页面重心回到三栏工作台内容。
+- 左侧会话导航标题统一为「聊天」；处理中保持可展开结构，AI Agent 子项增加圆形头像图标与名称，提升识别效率。
+- 会话列表标题按状态动态展示：全部为 `All chats`，处理中／已解决／已结束保持中文状态名称；会话列表继续以卡片 hover 和选中态区分当前会话。
+- 会话详情顶部简化为仅展示客户名称，移除访客 ID、状态、渠道、AI Agent 和会话 ID 等冗余上下文栏。
+- 历史会话切换从详情标题栏移入聊天滚动区：滚动到顶部时展示「上一个会话」，滚动到底部时展示「下一个会话」。
+- 消息区补齐客户消息头像与客户名称，系统消息调整为「事件内容 · 时间」同行展示；时间格式统一为当天 `HH:mm`、跨日期 `M月D日 HH:mm`。
+- `npm.cmd run build` 通过；`oxlint src/pages/InboxPage.tsx --max-warnings=0` 通过；本地 `/inbox` 返回 HTTP 200，源码断言已覆盖标题、导航、筛选、历史切换与时间格式关键实现。Chrome／Edge headless 截图因本机 GPU 进程不可用未生成截图。
+
+## 2026-09-16 收件箱筛选交互二轮优化（已完成）
+
+- 会话列表移除固定展示的渠道与 AI Agent 筛选，统一收敛到标题右侧 `Filter` 入口；未筛选时仅显示筛选图标与文案，已筛选时按筛选类型显示数量 Badge。
+- 点击 `Filter` 后仅展示筛选类型「AI Agent」「Channel」，不在类型菜单中放置重置按钮；选择类型后自动在搜索框下方生成条件标签，并打开该类型的具体选项浮层。
+- AI Agent 与 Channel 具体选项均支持搜索、多选与全选；Agent 选项展示头像图标，Channel 选项展示渠道类型图标，选中项整行浅色高亮并在右侧显示勾选。
+- 条件标签按选择值动态展示：未选值展示类型名，单选展示具体名称，多选展示 `AI Agent 2`／`Channel 2`；点击标签可重新打开选项浮层，点击 `×` 可移除该筛选条件。
+- 筛选选项改为选中即生效，选中或取消选中具体 AI Agent／Channel 后立即刷新列表并写入 URL；不再保留确认按钮和重置按钮，已选条件通过标签 `×` 单项移除。
+- 收件箱整体视觉从后台列表进一步调整为客服工作台：会话列表改为圆角会话卡，选中态改为中性灰卡片，客户头像增加稳定色彩区分，会话行内展示状态小标签；右侧会话详情补充底部状态栏，表达 AI 处理中、已解决、已转人工或已关闭。
+- `npm.cmd run build` 通过；`oxlint src/pages/InboxPage.tsx --max-warnings=0` 通过；筛选交互已调整为「点筛选图标 → 选筛选类型 → 选具体值后立即生效」，最终 URL 保留多值筛选，Filter Badge 显示筛选类型数量。
+- 浏览器补充验证已完成会话卡选中态与详情底部状态栏，截图保存至 `output/playwright/inbox-workbench-polished.png`。
+
+## 2026-09-16 收件箱高保真产品原型（已完成）
+
+- 左侧导航首位新增「收件箱」，接入独立 `/inbox` 路由；保持 AI 客服、知识库与团队原有入口和功能不变。
+- 完成「会话状态／会话列表／会话详情」三栏工作台，覆盖处理中、已解决、已结束和全部状态，并支持按 AI 客服展开统计。
+- 完成消息内容搜索、渠道与 AI 客服组合筛选、会话详情查看，以及同一访客同一渠道历史会话的上下切换；筛选、选中会话和演示状态均写入 URL。
+- 提供 23 条完整 Mock 会话，覆盖处理中、AI 已解决、转人工、15 分钟超时关闭和同一客户多次历史会话；消息区区分客户、AI 客服和系统消息。
+- 补齐列表／消息加载、无数据、加载失败与重新加载状态；窄屏下收起状态栏并切换为状态选择器，超窄屏改为上下布局。
+- `npm.cmd run build` 通过；Playwright 已验证首位导航、已解决状态、消息内容搜索、历史会话切换、1000px 窄屏布局及既有 AI 客服页面可访问。
+
+## 2026-09-15 产品名称更新（已完成）
+
+- 将产品导航品牌名称与浏览器页面标题统一更新为「IM Support」。
+
 ## 2026-08-31 AI 客服预览测试玩家配置（已完成）
 
 - 修复「测试设置」浮层展开时因浮层容器与内容宽度不一致导致的横向溢出和页面抖动；已验证 2048px、1280px、768px 视口下展开与收起均不改变页面宽度和主体位置。

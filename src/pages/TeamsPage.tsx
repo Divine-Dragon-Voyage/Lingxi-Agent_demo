@@ -49,7 +49,7 @@ function MemberSelector({ candidates, selected, onChange }: { candidates: Candid
     <Button type="text" className="member-selector-trigger" onClick={() => setOpen((current) => !current)} aria-expanded={open}><span className={selected.length ? '' : 'muted'}>{selected.length ? `已选择 ${selected.length} 名成员` : '请选择成员'}</span><IconDown className={open ? 'open' : ''} /></Button>
     {open && <div className="member-selector-popover">
       <Input prefix={<IconSearch />} value={query} placeholder="搜索成员" allowClear onChange={setQuery} />
-      <div className="member-picker-tabs"><Button type="text" className={tab === 'all' ? 'active' : ''} onClick={() => setTab('all')}>全部</Button><Button type="text" className={tab === 'human' ? 'active' : ''} onClick={() => setTab('human')}>人工客服</Button><Button type="text" className={tab === 'ai' ? 'active' : ''} onClick={() => setTab('ai')}>AI客服</Button></div>
+      <div className="member-picker-tabs"><Button type="text" className={tab === 'all' ? 'active' : ''} onClick={() => setTab('all')}>全部</Button><Button type="text" className={tab === 'human' ? 'active' : ''} onClick={() => setTab('human')}>人工客服</Button><Button type="text" className={tab === 'ai' ? 'active' : ''} onClick={() => setTab('ai')}>AI Agents</Button></div>
       <label className="member-picker-select-all"><Checkbox checked={allSelected} indeterminate={partiallySelected} onChange={(checked) => onChange(checked ? candidates.map((candidate) => candidate.id) : [])} />全选</label>
       <div className="member-picker-list">{visibleCandidates.length ? visibleCandidates.map((member) => <label className="member-picker-row" key={member.id}><Checkbox checked={selected.includes(member.id)} onChange={(checked) => toggle(member.id, checked)} /><MemberIdentity member={member} /></label>) : <Empty description="未找到匹配成员" />}</div>
     </div>}
@@ -115,7 +115,7 @@ export function TeamsPage() {
   };
   const requestDeleteTeam = (team: Team) => {
     const usedBy = state.agents.find((agent) => agent.draft.transferToHuman.mode === 'specified' && agent.draft.transferToHuman.teamId === team.id);
-    if (usedBy) { Message.warning(`AI客服「${usedBy.name}」正在转至该团队，请先修改其转人工设置。`); return; }
+    if (usedBy) { Message.warning(`AI Agent「${usedBy.name}」正在转至该团队，请先修改其转人工设置。`); return; }
     setDeletingTeam(team);
   };
   const confirmDeleteTeam = () => {

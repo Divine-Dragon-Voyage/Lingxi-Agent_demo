@@ -11,6 +11,10 @@ node_modules
 dist
 work/vite-scaffold-generated
 .playwright-cli
+.playwright-localappdata/
+.playwright-npm-cache/
+*.playwright-localappdata/
+output/
 design-previews/*/selection.json
 dist-ssr
 *.local

@@ -30,6 +30,7 @@ export interface EnvironmentVariable {
 }
 
 export interface AgentConfig {
+  workflowIds?: string[];
   prompt: string;
   language: string;
   style: string;
@@ -38,6 +39,7 @@ export interface AgentConfig {
   historyRounds: number;
   errorMessage: string;
   transferToHuman: TransferToHumanConfig;
+  reception: ReceptionConfig;
   flows: Flow[];
   skillIds: string[];
   knowledgeIds: string[];
@@ -62,6 +64,11 @@ export interface TransferToHumanConfig {
   enabled: boolean;
   mode: 'automatic' | 'specified';
   teamId?: string;
+}
+
+export interface ReceptionConfig {
+  welcomeEnabled: boolean;
+  welcomeMessage: string;
 }
 
 export type TeamMemberKind = 'human' | 'ai';
@@ -108,20 +115,26 @@ export interface Skill {
   updatedAt: string;
 }
 
+export type ChannelType = 'livechat' | 'telegram';
+
 export interface Channel {
   id: string;
+  type?: ChannelType;
   name: string;
-  agentId: string;
+  agentId?: string;
   enabled: boolean;
-  accountId: string;
-  accessToken: string;
-  receiveGroups: string[];
-  humanGroups: string[];
-  opening: string;
-  hotQuestions: string[];
-  ending: string;
-  humanEnabled: boolean;
-  humanFallback: string;
+  accountId?: string;
+  accessToken?: string;
+  botToken?: string;
+  webhookUrl?: string;
+  receiveGroups?: string[];
+  humanGroups?: string[];
+  opening?: string;
+  hotQuestions?: string[];
+  ending?: string;
+  humanEnabled?: boolean;
+  humanFallback?: string;
+  createdAt?: string;
   updatedAt: string;
 }
 
@@ -137,7 +150,38 @@ export interface Session {
   messages: { role: 'user' | 'agent' | 'system'; content: string }[];
 }
 
+export type InboxConversationState = 'processing' | 'closed';
+export type InboxClosedReason = 'ai_resolved' | 'human_handoff' | 'timeout' | null;
+export type InboxChannelType = 'livechat' | 'telegram';
+export type InboxMessageRole = 'customer' | 'agent' | 'system';
+
+export interface InboxMessage {
+  id: string;
+  role: InboxMessageRole;
+  content: string;
+  type?: 'text' | 'image';
+  imageUrl?: string;
+  sentAt: string;
+}
+
+export interface InboxConversation {
+  id: string;
+  visitorId: string;
+  customerName: string;
+  channelId: string;
+  channelType: InboxChannelType;
+  channelName: string;
+  agentId: string;
+  agentName: string;
+  state: InboxConversationState;
+  closedReason: InboxClosedReason;
+  createdAt: string;
+  updatedAt: string;
+  messages: InboxMessage[];
+}
+
 export interface AppState {
+  workflows: import('./workflows/model').Workflow[];
   demoDataVersion?: number;
   agents: Agent[];
   teams: Team[];
@@ -145,4 +189,14 @@ export interface AppState {
   skills: Skill[];
   channels: Channel[];
   sessions: Session[];
+  settings: SettingsConfig;
+}
+
+export interface ChatTimeoutSettings {
+  enabled: boolean;
+  minutes: number;
+}
+
+export interface SettingsConfig {
+  chatTimeout: ChatTimeoutSettings;
 }

@@ -6,6 +6,8 @@
 
 ## 技术约束
 
+- 工作流模块按 `prd/workflow_demo_prd.md` 的已确认增量需求开发，覆盖资源中心画布编排与 AI Agent 绑定／解绑；画布使用 React Flow，业务执行仅使用模拟数据。
+
 - React + TypeScript + Vite + Arco Design。
 - 富文本编辑器使用 Tiptap，不用普通 textarea 伪装。
 - 不接真实后端，不增加登录、权限、计费或 PRD 外渠道。

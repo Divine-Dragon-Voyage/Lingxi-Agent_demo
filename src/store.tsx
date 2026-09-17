@@ -1,9 +1,16 @@
-import { createContext, useContext, useEffect, useMemo, useReducer } from 'react';
-import type { AppState, Agent, AgentConfig, Channel, Flow, Guard, KnowledgeDocument, Skill, Team, TeamMember } from './types';
+import { createContext, useContext, useEffect, useMemo, useReducer, useState, useCallback } from 'react';
+import { seedWorkflows, snapshot, validateWorkflow } from './workflows/model';
+import type { Workflow, WorkflowDraft } from './workflows/model';
+import type { AppState, Agent, AgentConfig, Channel, ChatTimeoutSettings, Flow, Guard, KnowledgeDocument, Skill, Team, TeamMember } from './types';
 import { BOUND_DELETE_DEMO_DOCUMENT_ID, KNOWLEDGE_DELETE_DEMO_VERSION, now, seedState, UNBOUND_DELETE_DEMO_DOCUMENT_ID } from './mockData';
 import { DEFAULT_TEAM_ID, DEFAULT_TEAM_NAME, isDefaultTeam } from './teamDefaults';
 
 type Action =
+  | { type: 'workflow.add'; workflow: Workflow }
+  | { type: 'workflow.save'; id: string; draft: WorkflowDraft }
+  | { type: 'workflow.publish'; id: string }
+  | { type: 'workflow.delete'; id: string }
+  | { type: 'agent.workflows'; id: string; workflowIds: string[] }
   | { type: 'agent.update'; id: string; patch: Partial<Agent> }
   | { type: 'agent.config'; id: string; config: AgentConfig }
   | { type: 'agent.publish'; id: string }
@@ -20,7 +27,8 @@ type Action =
   | { type: 'skill.delete'; id: string }
   | { type: 'channel.save'; channel: Channel }
   | { type: 'channel.toggle'; id: string; enabled: boolean }
-  | { type: 'channel.delete'; id: string };
+  | { type: 'channel.delete'; id: string }
+  | { type: 'settings.saveChatTimeout'; value: ChatTimeoutSettings };
 
 const STORAGE_KEY = 'lingxi-agent-prototype:v3:ai-customer-20260720';
 const AVATAR_REFERENCE_PREFIX = '__agent_avatar_ref__:';
@@ -126,6 +134,8 @@ function serializeState(state: AppState): string {
 function deserializeState(stored: string): AppState {
   const state = JSON.parse(stored) as AppState;
   const avatars = new Map(state.agents.map((agent) => [agent.id, agent.avatar]));
+  const validLanguages = new Set(['简体中文', '繁体中文', '英语', '越南语', '泰语', '高棉语', '缅甸语', '老挝语']);
+  const normalizeConfig = (config: AgentConfig | null): AgentConfig | null => config && !validLanguages.has(config.language) ? { ...config, language: '英语' } : config;
   const resolveAvatar = (agent: Agent) => {
     let avatar = agent.avatar;
     const visited = new Set<string>();
@@ -137,11 +147,16 @@ function deserializeState(stored: string): AppState {
     }
     return avatar;
   };
-  return { ...state, agents: state.agents.map((agent) => ({ ...agent, avatar: resolveAvatar(agent) })) };
+  return { ...state, settings: state.settings ?? { chatTimeout: { enabled: true, minutes: 15 } }, agents: state.agents.map((agent) => ({ ...agent, avatar: resolveAvatar(agent), draft: normalizeConfig(agent.draft) ?? agent.draft, published: normalizeConfig(agent.published) })) };
 }
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
+    case 'workflow.add': return { ...state, workflows: [action.workflow, ...state.workflows] };
+    case 'workflow.save': return { ...state, workflows: state.workflows.map((flow) => flow.id === action.id ? { ...flow, draft: action.draft, updatedAt: now() } : flow) };
+    case 'workflow.publish': return { ...state, workflows: state.workflows.map((flow) => flow.id === action.id && !validateWorkflow(flow.draft, state.teams.map((team) => team.id)).length ? { ...flow, published: snapshot(flow.draft), publishedAt: now(), updatedAt: now() } : flow) };
+    case 'workflow.delete': return state.agents.some((agent) => agent.draft.workflowIds?.includes(action.id) || agent.published?.workflowIds?.includes(action.id)) ? state : { ...state, workflows: state.workflows.filter((flow) => flow.id !== action.id) };
+    case 'agent.workflows': return { ...state, agents: state.agents.map((agent) => agent.id === action.id ? { ...agent, draft: { ...agent.draft, workflowIds: [...new Set(action.workflowIds)].filter((id) => state.workflows.some((flow) => flow.id === id && flow.published)) }, updatedAt: now() } : agent) };
     case 'agent.update': {
       const agents = state.agents.map((item) => item.id === action.id ? { ...item, ...action.patch, updatedAt: now() } : item);
       const changed = agents.find((item) => item.id === action.id);
@@ -158,7 +173,12 @@ function reducer(state: AppState, action: Action): AppState {
       const member: TeamMember = { id: agent.id, kind: 'ai', name: agent.name, serviceId: `AI-${agent.id.slice(-6).toUpperCase()}`, avatar: agent.avatar, online: false, acceptingChats: false, priority: 'backup' };
       return { ...state, agents: [agent, ...state.agents], teams: state.teams.map((team) => agent.teamIds.includes(team.id) ? { ...team, members: [...team.members, member], updatedAt: now() } : team) };
     }
-    case 'agent.delete': return { ...state, agents: state.agents.filter((item) => item.id !== action.id), channels: state.channels.filter((item) => item.agentId !== action.id), teams: state.teams.map((team) => ({ ...team, members: team.members.filter((member) => member.id !== action.id) })) };
+    case 'agent.delete': return {
+      ...state,
+      agents: state.agents.filter((item) => item.id !== action.id),
+      channels: state.channels.map((item) => item.agentId === action.id ? { ...item, agentId: undefined, enabled: false, updatedAt: now() } : item),
+      teams: state.teams.map((team) => ({ ...team, members: team.members.filter((member) => member.id !== action.id) })),
+    };
     case 'agent.assignTeams': {
       const agent = state.agents.find((item) => item.id === action.id);
       if (!agent) return state;
@@ -198,26 +218,34 @@ function reducer(state: AppState, action: Action): AppState {
     case 'channel.save': return { ...state, channels: state.channels.some((item) => item.id === action.channel.id) ? state.channels.map((item) => item.id === action.channel.id ? action.channel : item) : [action.channel, ...state.channels] };
     case 'channel.toggle': return { ...state, channels: state.channels.map((item) => item.id === action.id ? { ...item, enabled: action.enabled, updatedAt: now() } : item) };
     case 'channel.delete': return { ...state, channels: state.channels.filter((item) => item.id !== action.id) };
+    case 'settings.saveChatTimeout': return { ...state, settings: { ...state.settings, chatTimeout: action.value } };
     default: return state;
   }
 }
 
 function loadState(): AppState {
-  try { const stored = localStorage.getItem(STORAGE_KEY); return ensureKnowledgeDeleteDemoData(normalizeTeamIds(stored ? deserializeState(stored) : seedState)); } catch { return ensureKnowledgeDeleteDemoData(normalizeTeamIds(seedState)); }
+  const withWorkflows = (state: AppState): AppState => ({ ...state, workflows: state.workflows ?? seedWorkflows() });
+  try { const stored = localStorage.getItem(STORAGE_KEY); return withWorkflows(ensureKnowledgeDeleteDemoData(normalizeTeamIds(stored ? deserializeState(stored) : { ...seedState, workflows: seedWorkflows() }))); } catch { return withWorkflows(ensureKnowledgeDeleteDemoData(normalizeTeamIds({ ...seedState, workflows: seedWorkflows() }))); }
 }
 
-const StoreContext = createContext<{ state: AppState; dispatch: React.Dispatch<Action> } | null>(null);
+const StoreContext = createContext<{ state: AppState; dispatch: React.Dispatch<Action>; saveStatus: 'saving' | 'saved' | 'error'; retrySave: () => void } | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, loadState);
-  useEffect(() => {
+  const [persisted, setPersisted] = useState<AppState | null>(null);
+  const [saveFailed, setSaveFailed] = useState(false);
+  const persist = useCallback(() => {
     try {
       localStorage.setItem(STORAGE_KEY, serializeState(state));
-    } catch (error) {
-      console.error('Failed to persist application state.', error);
+      setPersisted(state);
+      setSaveFailed(false);
+    } catch {
+      setSaveFailed(true);
     }
   }, [state]);
-  const value = useMemo(() => ({ state, dispatch }), [state]);
+  useEffect(persist, [persist]);
+  const saveStatus: 'error' | 'saved' | 'saving' = saveFailed ? 'error' : persisted === state ? 'saved' : 'saving';
+  const value = useMemo(() => ({ state, dispatch, saveStatus, retrySave: persist }), [state, saveStatus, persist]);
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 

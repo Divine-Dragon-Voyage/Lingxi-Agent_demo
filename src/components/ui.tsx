@@ -12,6 +12,7 @@ import {
   Form as ArcoForm,
   Grid,
   Input as ArcoInput,
+  InputNumber,
   Layout,
   Menu,
   Message,
@@ -44,7 +45,7 @@ const normalizeColor = (color: unknown) => ({
   default: 'gray',
 }[String(color)] || color);
 
-export { Avatar, Badge, Card, Checkbox, Col, DatePicker, Divider, Dropdown, Layout, Menu, Message, Popover, Radio, Row, Select, Space, Upload };
+export { Avatar, Badge, Card, Checkbox, Col, DatePicker, Divider, Dropdown, InputNumber, Layout, Menu, Message, Popover, Radio, Row, Select, Space, Upload };
 
 const CompatEmpty = ({ children, image: _image, ...props }: any) => <><ArcoEmpty {...props} /><div className="empty-action">{children}</div></>;
 CompatEmpty.PRESENTED_IMAGE_SIMPLE = null;

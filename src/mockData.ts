@@ -1,4 +1,4 @@
-import type { AgentConfig, AppState, Flow, Guard, Session, Skill, Team } from './types';
+import type { AgentConfig, AppState, Channel, Flow, Guard, Session, Skill, Team } from './types';
 
 export const now = () => new Date().toISOString();
 
@@ -30,12 +30,13 @@ const guard = (id: string, name: string, action: Guard['action'], prompt: string
 
 const createConfig = (patch: Partial<AgentConfig> = {}): AgentConfig => ({
   prompt: '你是企业客户支持智能体。回答应准确、清晰且可执行；无法确认的信息不得猜测，必要时转交人工客服。',
-  language: '与用户语言相同',
+  language: '英语',
   style: '自然',
   memoryEnabled: true,
   memoryDays: 30,
   historyRounds: 12,
   transferToHuman: { enabled: true, mode: 'automatic' },
+  reception: { welcomeEnabled: false, welcomeMessage: '' },
   errorMessage: '抱歉，当前服务暂时无法完成回复，请稍后重试或联系人工客服。',
   flows: [],
   skillIds: [],
@@ -206,6 +207,8 @@ const makeSession = (input: {
   ],
 });
 
+const channel = (patch: Channel): Channel => ({ ...patch, createdAt: patch.createdAt ?? patch.updatedAt });
+
 const teams: Team[] = [
   {
     id: '100000', name: '通用', builtin: true, createdAt: at('07', '09:00'), updatedAt: at('11', '09:18'), members: [
@@ -245,6 +248,7 @@ const teams: Team[] = [
 ];
 
 export const seedState: AppState = {
+  workflows: [],
   demoDataVersion: KNOWLEDGE_DELETE_DEMO_VERSION,
   agents: [
     { id: 'agent-support', name: '客服接待', description: '处理订单查询、物流进度、退款申请和售后问题，并在必要时转接人工客服。', status: 'published', updatedAt: at('11', '09:18'), teamIds: ['100000', '100001'], acceptingChats: true, draft: supportDraft, published: cloneConfig(supportPublished) },
@@ -274,11 +278,13 @@ export const seedState: AppState = {
   ],
   skills,
   channels: [
-    { id: 'channel-livechat', name: '官网客户服务', agentId: 'agent-support', enabled: true, accountId: 'lc_demo_main', accessToken: 'mock_livechat_token_main', receiveGroups: ['general', 'after_sales'], humanGroups: ['human_support_l1'], opening: '你好，我是智能客服。请告诉我你遇到的问题。', hotQuestions: ['如何查询订单进度？', '退款一般多久到账？', '商品破损如何处理？'], ending: '如果问题已经解决，可以直接结束本次会话。', humanEnabled: true, humanFallback: '当前人工客服繁忙，我已记录你的问题，请稍后再试。', updatedAt: at('10', '16:28') },
-    { id: 'channel-sales', name: '企业咨询窗口', agentId: 'agent-sales', enabled: true, accountId: 'lc_demo_sales', accessToken: 'mock_livechat_token_sales', receiveGroups: ['enterprise_sales'], humanGroups: [], opening: '你好，我是企业咨询助手，可以为你介绍产品能力和试用方式。', hotQuestions: ['如何申请企业试用？', '不同套餐有什么区别？'], ending: '感谢咨询，销售顾问会根据你的需求继续跟进。', humanEnabled: false, humanFallback: '', updatedAt: at('09', '18:05') },
-    { id: 'channel-vip', name: '会员专属服务', agentId: 'agent-vip', enabled: true, accountId: 'lc_demo_vip', accessToken: 'mock_livechat_token_vip', receiveGroups: ['vip_service'], humanGroups: ['vip_human_service'], opening: '你好，欢迎使用会员专属服务。', hotQuestions: ['如何查询我的会员等级？', '积分什么时候到账？'], ending: '感谢使用会员专属服务。', humanEnabled: true, humanFallback: '专属客服当前正在服务其他会员，请稍后再试。', updatedAt: at('08', '14:16') },
-    { id: 'channel-logistics-backup', name: '物流服务备用通道', agentId: 'agent-logistics', enabled: false, accountId: 'lc_demo_logistics', accessToken: 'mock_livechat_token_logistics', receiveGroups: ['logistics'], humanGroups: ['human_support_l2'], opening: '你好，请提供订单号，我来帮你查询物流进度。', hotQuestions: ['物流为什么一直没有更新？', '显示签收但没有收到怎么办？'], ending: '物流进度请以承运商最新轨迹为准。', humanEnabled: true, humanFallback: '物流专员暂时无法接入，请稍后重试。', updatedAt: at('07', '12:30') },
+    channel({ id: 'channel-livechat', type: 'livechat', name: '官网客户服务', agentId: 'agent-support', enabled: true, accountId: 'lc_demo_main', accessToken: 'mock_livechat_token_main', webhookUrl: 'https://im-support.example.com/webhooks/livechat/channel-livechat', receiveGroups: ['general', 'after_sales'], humanGroups: ['human_support_l1'], opening: '你好，我是智能客服。请告诉我你遇到的问题。', hotQuestions: ['如何查询订单进度？', '退款一般多久到账？', '商品破损如何处理？'], ending: '如果问题已经解决，可以直接结束本次会话。', humanEnabled: true, humanFallback: '当前人工客服繁忙，我已记录你的问题，请稍后再试。', updatedAt: at('10', '16:28') }),
+    channel({ id: 'channel-sales', type: 'livechat', name: '企业咨询窗口', agentId: 'agent-sales', enabled: true, accountId: 'lc_demo_sales', accessToken: 'mock_livechat_token_sales', webhookUrl: 'https://im-support.example.com/webhooks/livechat/channel-sales', receiveGroups: ['enterprise_sales'], humanGroups: [], opening: '你好，我是企业咨询助手，可以为你介绍产品能力和试用方式。', hotQuestions: ['如何申请企业试用？', '不同套餐有什么区别？'], ending: '感谢咨询，销售顾问会根据你的需求继续跟进。', humanEnabled: false, humanFallback: '', updatedAt: at('09', '18:05') }),
+    channel({ id: 'channel-telegram-payment', type: 'telegram', name: 'TG 充值渠道', agentId: 'agent-support', enabled: true, botToken: '123456789:mock_telegram_payment_bot', updatedAt: at('09', '16:58') }),
+    channel({ id: 'channel-vip', type: 'livechat', name: '会员专属服务', agentId: 'agent-vip', enabled: true, accountId: 'lc_demo_vip', accessToken: 'mock_livechat_token_vip', webhookUrl: 'https://im-support.example.com/webhooks/livechat/channel-vip', receiveGroups: ['vip_service'], humanGroups: ['vip_human_service'], opening: '你好，欢迎使用会员专属服务。', hotQuestions: ['如何查询我的会员等级？', '积分什么时候到账？'], ending: '感谢使用会员专属服务。', humanEnabled: true, humanFallback: '专属客服当前正在服务其他会员，请稍后再试。', updatedAt: at('08', '14:16') }),
+    channel({ id: 'channel-logistics-backup', type: 'livechat', name: '物流服务备用通道', agentId: 'agent-logistics', enabled: false, accountId: 'lc_demo_logistics', accessToken: 'mock_livechat_token_logistics', webhookUrl: 'https://im-support.example.com/webhooks/livechat/channel-logistics-backup', receiveGroups: ['logistics'], humanGroups: ['human_support_l2'], opening: '你好，请提供订单号，我来帮你查询物流进度。', hotQuestions: ['物流为什么一直没有更新？', '显示签收但没有收到怎么办？'], ending: '物流进度请以承运商最新轨迹为准。', humanEnabled: true, humanFallback: '物流专员暂时无法接入，请稍后重试。', updatedAt: at('07', '12:30') }),
   ],
+  settings: { chatTimeout: { enabled: true, minutes: 15 } },
   sessions: [
     makeSession({ id: 'session-01', title: '订单预计送达时间', channel: '官网客户服务', agentId: 'agent-support', startedAt: at('11', '09:42'), status: 'active', messageCount: 6, hits: ['流程：订单状态查询', '技能：查询订单'], user: '订单 LX202607110238 什么时候能到？', system: '命中流程“订单状态查询”，技能返回：运输中，预计 7 月 12 日送达。', reply: '订单正在运输中，预计 7 月 12 日送达。你可以继续在订单页面查看最新轨迹。' }),
     makeSession({ id: 'session-02', title: '退款到账时间', channel: '官网客户服务', agentId: 'agent-support', startedAt: at('11', '09:18'), status: 'ended', messageCount: 10, hits: ['流程：退款申请处理', '知识：退款政策与时效'], user: '退款审核通过了，大概多久到账？', system: '命中知识“退款政策与时效”。', reply: '审核通过后通常会在 1—3 个工作日内原路退回，实际到账时间以支付机构处理进度为准。' }),
