@@ -148,12 +148,18 @@ select:focus-visible {
 .resource-picker-modal .arco-modal-content { padding: var(--space-4); }
 .resource-picker-modal .arco-input-wrapper { margin-bottom: var(--space-4); }
 .resource-picker-list, .resource-picker-table { display: grid; max-height: 420px; gap: 2px; overflow: auto; }
+.document-picker-list { gap: var(--space-2); }
+.document-picker-list .arco-checkbox { display: flex; align-items: center; width: 100%; padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+.document-picker-list .arco-checkbox-text { flex: 1; min-width: 0; }
+.resource-picker-row-main { display: inline-flex; min-width: 0; align-items: center; gap: var(--space-3); }
+.resource-picker-row-main strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .skill-picker-item, .knowledge-picker-item { display: flex; width: 100%; align-items: center; gap: var(--space-3); padding: var(--space-3); color: var(--color-foreground); text-align: left; background: transparent; border: 0; border-radius: var(--radius-sm); cursor: pointer; }
 .skill-picker-item:hover, .knowledge-picker-item:hover { background: var(--color-primary-bg); }
 .skill-picker-item > span:last-child, .knowledge-picker-item > span:nth-child(2) { display: grid; min-width: 0; flex: 1; gap: 4px; }
 .skill-picker-item strong, .knowledge-picker-item strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .skill-picker-item small, .knowledge-picker-item small { overflow: hidden; color: var(--color-text-2); font-size: var(--font-size-small); text-overflow: ellipsis; white-space: nowrap; }
 .knowledge-picker-item { border-bottom: 1px solid var(--color-border); border-radius: 0; }
+.knowledge-picker-item:last-child { border-bottom: 0; }
 .resource-row-avatar.url { color: var(--color-primary); }
 .detail-resource-table { overflow: hidden; border-top: 1px solid var(--color-border); }
 .detail-resource-row { display: flex; min-height: 72px; align-items: center; gap: var(--space-4); padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border); }
@@ -203,6 +209,7 @@ select:focus-visible {
   outline: none;
 }
 .detail-section { border-bottom: 1px solid var(--color-border); }
+.detail-section:last-child { border-bottom: 0; }
 .detail-section + .detail-section { margin-top: var(--space-6); }
 .detail-section-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding-bottom: var(--space-3); }
 .detail-section-head h2 { margin: 0; color: var(--color-text-2); font-size: 14px; line-height: 20px; font-weight: 500; }
@@ -801,6 +808,7 @@ select:focus-visible {
 .inbox-system-message > span { padding: var(--space-1) var(--space-3); background: var(--color-surface-high); border-radius: 999px; font-size: var(--font-size-small); line-height: var(--line-height-small); white-space: pre-line; }
 .inbox-thread-jump { position: sticky; left: 50%; z-index: 2; display: inline-flex; width: fit-content; align-items: center; gap: var(--space-1); padding: 7px var(--space-3); color: var(--color-text-2); background: var(--color-background); border: 1px solid var(--color-border); border-radius: 999px; box-shadow: var(--shadow-2); font-weight: 500; transform: translateX(-50%); }
 .inbox-thread-jump:hover { color: var(--color-primary); background: var(--color-primary-bg); border-color: rgba(22, 100, 255, .35); }
+.inbox-thread-jump:disabled { color: var(--color-muted-foreground); background: var(--color-surface-high); border-color: var(--color-border); box-shadow: none; cursor: not-allowed; opacity: .72; }
 .inbox-thread-jump.is-top { top: var(--space-3); margin: 0 0 var(--space-4); }
 .inbox-thread-jump.is-bottom { bottom: var(--space-3); margin: var(--space-2) 0 0; }
 .inbox-detail-footer { display: flex; min-height: 56px; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-5); color: var(--color-muted-foreground); background: var(--color-background); border-top: 1px solid var(--color-border); font-size: var(--font-size-small); }

@@ -224,11 +224,11 @@ void VariablesSection;
 void MonitorSection;
 
 function ShellRoutes() {
-  return <AppShell><Routes><Route path="/" element={<Navigate to="/agents" replace />} /><Route path="/inbox" element={<InboxPage />} /><Route path="/agents" element={<AgentListPage />} /><Route path="/knowledge" element={<KnowledgePageV2 />} /><Route path="/workflows" element={<WorkflowsPage />} /><Route path="/workflows/:id" element={<WorkflowEditorPage />} /><Route path="/teams" element={<TeamsPage />} /><Route path="/teams/:id" element={<TeamDetailPage />} /><Route path="/skills" element={<SkillsPageV2 />} /><Route path="/channels/*" element={<ChannelsModulePage />} /><Route path="/settings" element={<SettingsPage />} /><Route path="*" element={<Navigate to="/agents" replace />} /></Routes></AppShell>;
+  return <AppShell><Routes><Route path="/" element={<Navigate to="/agents" replace />} /><Route path="/inbox" element={<InboxPage />} /><Route path="/agents" element={<AgentListPage />} /><Route path="/knowledge" element={<KnowledgePageV2 />} /><Route path="/workflows" element={<WorkflowsPage />} /><Route path="/teams" element={<TeamsPage />} /><Route path="/teams/:id" element={<TeamDetailPage />} /><Route path="/skills" element={<SkillsPageV2 />} /><Route path="/channels/*" element={<ChannelsModulePage />} /><Route path="/settings" element={<SettingsPage />} /><Route path="*" element={<Navigate to="/agents" replace />} /></Routes></AppShell>;
 }
 
 function AppRoutes() {
-  return <Routes><Route path="/agents/:id/:section" element={<AgentDetailPage />} /><Route path="*" element={<ShellRoutes />} /></Routes>;
+  return <Routes><Route path="/agents/:id/:section" element={<AgentDetailPage />} /><Route path="/workflows/:id" element={<WorkflowEditorPage />} /><Route path="*" element={<ShellRoutes />} /></Routes>;
 }
 
 export default function App() { return <AppProvider><AppRoutes /></AppProvider>; }

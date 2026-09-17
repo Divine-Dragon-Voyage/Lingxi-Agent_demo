@@ -123,7 +123,6 @@ export function InboxPage() {
   const [draftAgentIds, setDraftAgentIds] = useState<string[]>([]);
   const [draftChannelIds, setDraftChannelIds] = useState<string[]>([]);
   const [filterKeyword, setFilterKeyword] = useState('');
-  const [historyEdge, setHistoryEdge] = useState<'top' | 'bottom' | null>('bottom');
   const conversationRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const messageViewportRef = useRef<HTMLDivElement | null>(null);
 
@@ -231,7 +230,6 @@ export function InboxPage() {
   useEffect(() => {
     if (messageState === 'ready') {
       messageViewportRef.current?.scrollTo({ top: messageViewportRef.current.scrollHeight });
-      window.setTimeout(() => setHistoryEdge('bottom'));
     }
   }, [messageState, selectedId]);
 
@@ -251,15 +249,6 @@ export function InboxPage() {
   };
   const retryList = () => updateParams({ demo: null });
   const retryMessages = () => updateParams({ demo: null });
-  const handleMessageScroll = () => {
-    const viewport = messageViewportRef.current;
-    if (!viewport) return;
-    const bottomDistance = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
-    if (viewport.scrollTop <= 24) setHistoryEdge('top');
-    else if (bottomDistance <= 24) setHistoryEdge('bottom');
-    else setHistoryEdge(null);
-  };
-
   const chooseFilterType = (type: FilterType) => {
     setDraftFilterTypes((types) => types.includes(type) ? types : [...types, type]);
     setFilterKeyword('');
@@ -476,11 +465,11 @@ export function InboxPage() {
           <header className="inbox-detail-header">
             <strong>{selectedConversation.customerName}</strong>
           </header>
-          <div className="inbox-message-viewport" ref={messageViewportRef} onScroll={handleMessageScroll}>
+          <div className="inbox-message-viewport" ref={messageViewportRef}>
             {messageState === 'loading' && <MessageSkeleton />}
             {messageState === 'error' && <div className="inbox-centered-state"><IconExclamationCircle /><strong>消息加载失败</strong><span>当前会话暂时无法读取</span><Button type="primary" icon={<IconRefresh />} onClick={retryMessages}>重新加载</Button></div>}
             {messageState === 'ready' && <>
-              {history.length > 1 && historyEdge === 'top' && historyIndex >= 0 && historyIndex < history.length - 1 && <button type="button" className="inbox-thread-jump is-top" onClick={() => switchHistory(history[historyIndex + 1])}><IconArrowUp /> 上一个会话</button>}
+              {history.length > 1 && historyIndex >= 0 && <button type="button" className="inbox-thread-jump is-top" disabled={historyIndex >= history.length - 1} onClick={() => switchHistory(history[historyIndex + 1])}><IconArrowUp /> 上一个会话</button>}
               {selectedConversation.messages.map((message) => message.role === 'system'
                 ? <div className="inbox-system-message" key={message.id}><span>{message.content} · {formatMessageTime(message.sentAt)}</span></div>
                 : <div className={`inbox-message-row is-${message.role}`} key={message.id}>
@@ -497,7 +486,7 @@ export function InboxPage() {
                   </div>
                   {message.role === 'agent' && <span className="inbox-agent-avatar"><IconRobot /></span>}
                 </div>)}
-              {history.length > 1 && historyEdge === 'bottom' && historyIndex > 0 && <button type="button" className="inbox-thread-jump is-bottom" onClick={() => switchHistory(history[historyIndex - 1])}><IconArrowDown /> 下一个会话</button>}
+              {history.length > 1 && historyIndex >= 0 && <button type="button" className="inbox-thread-jump is-bottom" disabled={historyIndex <= 0} onClick={() => switchHistory(history[historyIndex - 1])}><IconArrowDown /> 下一个会话</button>}
             </>}
           </div>
           <footer className="inbox-detail-footer">

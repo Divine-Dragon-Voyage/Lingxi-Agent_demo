@@ -10,7 +10,8 @@
 .wf-row-actions .arco-btn { width: 32px; padding: 0; }
 .wf-bound-agents { display: flex; gap: var(--space-2); flex-wrap: wrap; padding: var(--space-3); background: var(--color-surface-container); }
 .wf-picker-list { max-height: 400px; overflow-y: auto; }
-.wf-picker-list .arco-checkbox { display: flex; align-items: flex-start; width: 100%; padding: var(--space-4) var(--space-2); border-bottom: 1px solid var(--color-border); }
+.wf-picker-list .arco-checkbox { display: flex; align-items: center; width: 100%; padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+.wf-picker-list .arco-checkbox + .arco-checkbox { margin-top: var(--space-2); }
 .wf-picker-list .arco-checkbox-text { flex: 1; min-width: 0; }
 .wf-picker-content { display: block; }
 .wf-picker-title { display: flex; gap: var(--space-2); align-items: center; }
@@ -25,9 +26,10 @@
 .wf-save-saving > .arco-icon { animation: wf-spin 1s linear infinite; }
 @keyframes wf-spin { to { transform: rotate(360deg); } }
 .wf-editor { display: flex; flex-direction: column; height: calc(100dvh - var(--nav-height) - var(--space-4)); min-height: 560px; border: 1px solid var(--color-border); border-bottom: 0; border-radius: var(--radius-lg); overflow: hidden; background: var(--color-background); }
-.wf-editor-header { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: var(--space-4); min-height: 64px; padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--color-border); }
+.wf-editor-fullpage { height: 100dvh; min-height: 560px; border: 0; border-radius: 0; }
+.wf-editor-header { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: var(--space-4); min-height: 72px; padding: var(--space-4) var(--space-8); border-bottom: 1px solid var(--color-border); background: var(--color-background); }
 .wf-editor-heading { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
-.wf-editor-heading h1 { margin: 0; font-size: var(--font-size-section); line-height: var(--line-height-section); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wf-editor-heading h1 { margin: 0; font-size: var(--font-size-title); line-height: var(--line-height-title); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wf-editor-heading .arco-btn, .wf-editor-heading .arco-tag { flex-shrink: 0; }
 .wf-editor-actions { display: flex; align-items: center; gap: var(--space-3); flex-shrink: 0; }
 .wf-editor-workspace { display: flex; flex: 1; min-height: 0; position: relative; }

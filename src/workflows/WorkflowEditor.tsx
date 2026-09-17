@@ -13,6 +13,7 @@ import type { NodeKind, Workflow, WorkflowDraft, WorkflowNode, WorkflowIssue } f
 import '@xyflow/react/dist/style.css';
 import './workflow.css';
 
+const formatDate = (value: string) => value.replace('T', ' ').slice(0, 16);
 const nodeIcons = { start: IconPlayArrow, end: IconCheck, ai: IconRobot, collect: IconMessage, api: IconCode, condition: IconBranch, reply: IconSend, handoff: IconUserGroup };
 const groups: { title: string; nodes: NodeKind[] }[] = [{ title: '任务', nodes: ['ai'] }, { title: '信息', nodes: ['collect', 'api'] }, { title: '判断', nodes: ['condition'] }, { title: '动作', nodes: ['reply', 'handoff', 'end'] }];
 function nodeSummary(node: WorkflowNode['data']) {
@@ -139,9 +140,9 @@ function EditorCanvas({ flow, readOnly, returnTo }: { flow: Workflow; readOnly: 
     if (errors.length) { focusIssue(errors[0]); Message.error('请完成流程配置后再发布'); return; }
     Modal.confirm({ title: '发布工作流？', content: `发布「${draft.name}」后，AI Agent 可绑定此流程。已绑定的 AI Agent 将使用本次发布内容。`, okText: '确认发布', onOk: () => { dispatch({ type: 'workflow.publish', id: flow.id }); setAwaitingPublish(true); } });
   };
-  return <div className="wf-editor">
-    <header className="wf-editor-header"><div className="wf-editor-heading"><Tooltip title={returnTo === '/workflows' ? '返回流程列表' : '返回 AI Agent'}><Button type="text" icon={<IconArrowLeft />} aria-label="返回" onClick={() => navigate(returnTo)} /></Tooltip><h1 title={draft.name}>{draft.name}</h1>{!readOnly && <Tooltip title="编辑基础信息"><Button type="text" icon={<IconEdit />} aria-label="编辑基础信息" onClick={() => setEditingBasics(true)} /></Tooltip>}{readOnly ? <Tag color="success">已发布版本</Tag> : <WorkflowStatus flow={flow} />}</div>
-      <div className="wf-editor-actions">{readOnly ? <Button onClick={() => navigate(`/workflows/${flow.id}`)}>编辑草稿</Button> : <><SaveIndicator /><Button type="primary" disabled={saveStatus !== 'saved' || !hasChanges(flow)} onClick={publish}>发布</Button></>}<Tooltip title={panelOpen ? '收起节点面板' : '展开节点面板'}><Button type="text" icon={panelOpen ? <IconClose /> : <IconPlus />} aria-label={panelOpen ? '收起节点面板' : '展开节点面板'} onClick={() => setPanelOpen(!panelOpen)} /></Tooltip></div>
+  return <div className="wf-editor wf-editor-fullpage">
+    <header className="wf-editor-header"><div className="wf-editor-heading"><Tooltip title={returnTo === '/workflows' ? '返回流程列表' : '返回 AI Agent'}><Button type="text" shape="circle" icon={<IconArrowLeft />} aria-label="返回" onClick={() => navigate(returnTo)} /></Tooltip><h1 title={draft.name}>{draft.name}</h1>{!readOnly && <Tooltip title="编辑基础信息"><Button type="text" icon={<IconEdit />} aria-label="编辑基础信息" onClick={() => setEditingBasics(true)} /></Tooltip>}{readOnly ? <Tag color="success">已发布版本</Tag> : <WorkflowStatus flow={flow} />}<span className="save-time">最近保存：{formatDate(flow.updatedAt)}</span></div>
+      <div className="wf-editor-actions">{readOnly ? <Button onClick={() => navigate(`/workflows/${flow.id}`)}>编辑草稿</Button> : <><SaveIndicator /><Button type="primary" icon={<IconSend />} disabled={saveStatus !== 'saved' || !hasChanges(flow)} onClick={publish}>发布</Button></>}<Tooltip title={panelOpen ? '收起节点面板' : '展开节点面板'}><Button type="text" icon={panelOpen ? <IconClose /> : <IconPlus />} aria-label={panelOpen ? '收起节点面板' : '展开节点面板'} onClick={() => setPanelOpen(!panelOpen)} /></Tooltip></div>
     </header>
     <div className={`wf-editor-workspace${panelOpen ? ' has-panel' : ''}`}>
       <div className="wf-canvas" ref={canvasRef} onDrop={onDrop} onDragOver={(event) => { if (!readOnly) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; } }}>

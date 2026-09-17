@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { MouseEvent } from 'react';
-import { Button, Card, DatePicker, Descriptions, Divider, Drawer, Dropdown, Empty, Form, Input, Menu, Modal, Select, Switch, Table, Tag, Message } from '../components/ui';
+import { Button, Card, Checkbox, DatePicker, Descriptions, Divider, Drawer, Dropdown, Empty, Form, Input, Menu, Modal, Select, Switch, Table, Tag, Message } from '../components/ui';
 import { IconCopy, IconDelete, IconMore, IconPlus } from '@arco-design/web-react/icon';
 import { RichTextEditor } from '../components/RichTextEditor';
 import { PdfDocumentIcon } from '../components/PdfDocumentIcon';
@@ -53,10 +53,17 @@ export function KnowledgeSectionV2({ agent }: { agent: Agent }) {
   const [removing, setRemoving] = useState<KnowledgeDocument>();
   const [query, setQuery] = useState('');
   const [pageQuery, setPageQuery] = useState('');
+  const [selected, setSelected] = useState<string[]>([]);
   const attached = state.documents.filter((doc) => doc.type === 'PDF' && agent.draft.knowledgeIds.includes(doc.id));
   const visibleAttached = attached.filter((doc) => doc.name.toLowerCase().includes(pageQuery.toLowerCase()));
   const available = state.documents.filter((doc) => doc.type === 'PDF' && doc.status === 'success' && !agent.draft.knowledgeIds.includes(doc.id) && doc.name.toLowerCase().includes(query.toLowerCase()));
-  const addDocument = (documentId: string) => { dispatch({ type: 'agent.config', id: agent.id, config: { ...agent.draft, knowledgeIds: [...agent.draft.knowledgeIds, documentId] } }); setOpen(false); setQuery(''); toast.success('文档已绑定'); };
+  const closePicker = () => { setOpen(false); setQuery(''); setSelected([]); };
+  const bindDocuments = () => {
+    if (!selected.length) return;
+    dispatch({ type: 'agent.config', id: agent.id, config: { ...agent.draft, knowledgeIds: [...agent.draft.knowledgeIds, ...selected] } });
+    closePicker();
+    toast.success('文档已绑定');
+  };
   const detach = (documentId: string) => { dispatch({ type: 'agent.config', id: agent.id, config: { ...agent.draft, knowledgeIds: agent.draft.knowledgeIds.filter((id) => id !== documentId) } }); toast.success('文档已移除'); };
   const addFiles = (files: File[]) => {
     let accepted = 0;
@@ -73,7 +80,7 @@ export function KnowledgeSectionV2({ agent }: { agent: Agent }) {
     }
     if (accepted) toast.success('文档已加入处理队列');
   };
-  return <div className="detail-resource-page"><div className="detail-toolbar"><h1 className="resource-page-title">知识库</h1><Button type="primary" icon={<IconPlus />} onClick={() => setOpen(true)}>绑定文档</Button></div><Input.Search className="resource-page-search" value={pageQuery} onChange={setPageQuery} placeholder="搜索文档" allowClear /><Table rowKey="id" dataSource={visibleAttached} pagination={false} noDataElement={<Empty description={attached.length ? '未找到文档' : '当前 AI Agent 尚未绑定文档'} />} columns={[{ title: '名称', dataIndex: 'name', render: (value: string) => <div className="module-name-cell"><PdfDocumentIcon /><strong>{value}</strong></div> }, { title: '创建者', dataIndex: 'creator' }, { title: '创建时间', dataIndex: 'createdAt', render: (_: unknown, document: KnowledgeDocument) => formatDate(document.createdAt || document.updatedAt) }, { title: '操作', width: 56, render: (_: unknown, document: KnowledgeDocument) => <Button type="text" danger className="document-remove-button" icon={<IconDelete />} aria-label={`移除文档：${document.name}`} onClick={() => setRemoving(document)} /> }]} /><Modal open={open} title="绑定文档" onCancel={() => { setOpen(false); setQuery(''); }} footer={null} className="resource-picker-modal"><div className="document-picker-toolbar"><Input.Search value={query} onChange={setQuery} placeholder="搜索文档" allowClear /><Button className="document-picker-add" onClick={() => setFileOpen(true)}>添加文档</Button></div><div className="resource-picker-list">{available.map((document) => <button type="button" className="knowledge-picker-item" key={document.id} onClick={() => addDocument(document.id)}><PdfDocumentIcon /><strong>{document.name}</strong></button>)}</div>{!available.length && <Empty description="暂无可绑定文档" />}</Modal><Modal open={Boolean(removing)} title="移除文档？" onCancel={() => setRemoving(undefined)} onOk={() => { if (removing) detach(removing.id); setRemoving(undefined); }} okText="移除">移除后，该 AI Agent 将不再使用此文档。</Modal><KnowledgeFileModal open={fileOpen} onClose={() => setFileOpen(false)} onAdd={addFiles} /></div>;
+  return <div className="detail-resource-page"><div className="detail-toolbar"><h1 className="resource-page-title">知识库</h1><Button type="primary" icon={<IconPlus />} onClick={() => setOpen(true)}>绑定文档</Button></div><Input.Search className="resource-page-search" value={pageQuery} onChange={setPageQuery} placeholder="搜索文档" allowClear /><Table rowKey="id" dataSource={visibleAttached} pagination={false} noDataElement={<Empty description={attached.length ? '未找到文档' : '当前 AI Agent 尚未绑定文档'} />} columns={[{ title: '名称', dataIndex: 'name', render: (value: string) => <div className="module-name-cell"><PdfDocumentIcon /><strong>{value}</strong></div> }, { title: '创建者', dataIndex: 'creator' }, { title: '创建时间', dataIndex: 'createdAt', render: (_: unknown, document: KnowledgeDocument) => formatDate(document.createdAt || document.updatedAt) }, { title: '操作', width: 56, render: (_: unknown, document: KnowledgeDocument) => <Button type="text" danger className="document-remove-button" icon={<IconDelete />} aria-label={`移除文档：${document.name}`} onClick={() => setRemoving(document)} /> }]} /><Modal open={open} title="绑定文档" onCancel={closePicker} className="resource-picker-modal" okText="绑定" okButtonProps={{ disabled: !selected.length }} onOk={bindDocuments}><div className="document-picker-toolbar"><Input.Search value={query} onChange={setQuery} placeholder="搜索文档" allowClear /><Button className="document-picker-add" onClick={() => setFileOpen(true)}>添加文档</Button></div><div className="resource-picker-list document-picker-list">{available.map((document) => <Checkbox key={document.id} checked={selected.includes(document.id)} onChange={(checked) => setSelected((prev) => checked ? [...prev, document.id] : prev.filter((id) => id !== document.id))}><span className="resource-picker-row-main"><PdfDocumentIcon /><strong>{document.name}</strong></span></Checkbox>)}</div>{!available.length && <Empty description="暂无可绑定文档" />}</Modal><Modal open={Boolean(removing)} title="移除文档？" onCancel={() => setRemoving(undefined)} onOk={() => { if (removing) detach(removing.id); setRemoving(undefined); }} okText="移除">移除后，该 AI Agent 将不再使用此文档。</Modal><KnowledgeFileModal open={fileOpen} onClose={() => setFileOpen(false)} onAdd={addFiles} /></div>;
 }
 
 export function GuardsSectionV2({ agent }: { agent: Agent }) {

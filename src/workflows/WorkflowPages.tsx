@@ -9,6 +9,8 @@ import { makeWorkflow, snapshot, workflowStatus } from './model';
 import type { Workflow } from './model';
 import './workflow.css';
 
+const formatDate = (value: string) => value.replace('T', ' ').slice(0, 16);
+
 export function WorkflowStatus({ flow }: { flow: Workflow }) {
   return <Tag color={!flow.published ? 'gray' : workflowStatus(flow) === '已发布' ? 'success' : 'warning'}>{workflowStatus(flow)}</Tag>;
 }
@@ -48,7 +50,7 @@ export function WorkflowsPage() {
   const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);
   const [removing, setRemoving] = useState<Workflow>();
-  const flows = state.workflows.filter((flow) => `${flow.draft.name} ${flow.draft.trigger}`.toLowerCase().includes(query.trim().toLowerCase()));
+  const flows = state.workflows.filter((flow) => flow.draft.name.toLowerCase().includes(query.trim().toLowerCase()));
   const bindings = removing ? state.agents.filter((agent) => agent.draft.workflowIds?.includes(removing.id) || agent.published?.workflowIds?.includes(removing.id)) : [];
   const copy = (flow: Workflow) => {
     const copied = makeWorkflow(`${flow.draft.name.slice(0, 47)} 副本`, flow.draft.trigger);
@@ -57,12 +59,14 @@ export function WorkflowsPage() {
   };
   return <div className="page-content module-page wf-list-page">
     <PageHeader title="工作流" actions={<Button type="primary" icon={<IconPlus />} onClick={() => setCreating(true)}>新建流程</Button>} />
-    <div className="wf-list-toolbar"><Input.Search value={query} onChange={(value) => { setQuery(value); setPage(1); }} placeholder="搜索流程名称或触发器" allowClear />{saveStatus === 'error' && <SaveIndicator />}</div>
+    <div className="wf-list-toolbar"><Input.Search value={query} onChange={(value) => { setQuery(value); setPage(1); }} placeholder="搜索工作流名称" allowClear />{saveStatus === 'error' && <SaveIndicator />}</div>
     <Table rowKey="id" dataSource={flows} scroll={{ x: 720 }} pagination={{ current: Math.min(page, Math.max(1, Math.ceil(flows.length / 10))), pageSize: 10, total: flows.length, showTotal: true, onChange: setPage }} noDataElement={<Empty icon={<IconBranch />} description={query ? '未找到匹配的工作流' : '暂无工作流'}>{!query && <Button type="primary" onClick={() => setCreating(true)}>新建流程</Button>}</Empty>} columns={[
-      { title: '名称', dataIndex: 'name', width: 300, render: (_: unknown, flow: Workflow) => <div className="wf-name-cell"><span className="wf-resource-icon"><IconBranch /></span><Tooltip title={flow.draft.name}><button className="wf-name-link" onClick={() => navigate(`/workflows/${flow.id}`)}>{flow.draft.name}</button></Tooltip><WorkflowStatus flow={flow} /></div> },
+      { title: '名称', dataIndex: 'name', width: 300, render: (_: unknown, flow: Workflow) => <div className="wf-name-cell"><span className="wf-resource-icon"><IconBranch /></span><Tooltip title={flow.draft.name}><button className="wf-name-link" onClick={() => navigate(`/workflows/${flow.id}`)}>{flow.draft.name}</button></Tooltip></div> },
       { title: '触发器', render: (_: unknown, flow: Workflow) => <Tooltip title={flow.draft.trigger}><span className="wf-trigger-text">{flow.draft.trigger}</span></Tooltip> },
       { title: '创建者', dataIndex: 'creator', width: 100 },
-      { title: '操作', width: 100, fixed: 'right', render: (_: unknown, flow: Workflow) => <div className="wf-row-actions"><Tooltip title="编辑流程"><Button type="text" icon={<IconEdit />} aria-label={`编辑流程：${flow.draft.name}`} onClick={() => navigate(`/workflows/${flow.id}`)} /></Tooltip><Dropdown trigger="click" droplist={<Menu><Menu.Item key="copy" onClick={() => copy(flow)}><IconCopy /> 复制</Menu.Item><Menu.Item key="delete" className="danger-menu-item" onClick={() => setRemoving(flow)}><IconDelete /> 删除</Menu.Item></Menu>}><Button type="text" icon={<IconMore />} aria-label={`${flow.draft.name} 更多操作`} /></Dropdown></div> },
+      { title: '创建时间', dataIndex: 'createdAt', width: 170, render: formatDate },
+      { title: '状态', width: 130, render: (_: unknown, flow: Workflow) => <WorkflowStatus flow={flow} /> },
+      { title: '操作', width: 72, fixed: 'right', render: (_: unknown, flow: Workflow) => <Dropdown trigger="click" droplist={<Menu><Menu.Item key="edit" onClick={() => navigate(`/workflows/${flow.id}`)}><IconEdit /> 编辑</Menu.Item><Menu.Item key="copy" onClick={() => copy(flow)}><IconCopy /> 复制</Menu.Item><Menu.Item key="delete" className="danger-menu-item" onClick={() => setRemoving(flow)}><IconDelete /> 删除</Menu.Item></Menu>}><Button type="text" className="table-more-button" icon={<IconMore />} aria-label={`${flow.draft.name} 更多操作`} /></Dropdown> },
     ]} />
     {creating && <WorkflowBasicsModal onClose={() => setCreating(false)} onSubmit={(name, trigger) => { const flow = makeWorkflow(name, trigger); dispatch({ type: 'workflow.add', workflow: flow }); setCreating(false); navigate(`/workflows/${flow.id}`); }} />}
     <Modal open={Boolean(removing)} title={bindings.length ? '工作流正在被使用' : '删除工作流？'} onCancel={() => setRemoving(undefined)} okText={bindings.length ? '知道了' : '删除'} okButtonProps={{ status: bindings.length ? undefined : 'danger' }} onOk={() => { if (removing && !bindings.length) { dispatch({ type: 'workflow.delete', id: removing.id }); Message.success('工作流已删除'); } setRemoving(undefined); }}>
@@ -80,7 +84,7 @@ export function AgentWorkflowSection({ agent }: { agent: Agent }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [removing, setRemoving] = useState<Workflow>();
   const attachedIds = agent.draft.workflowIds ?? [];
-  const matches = (flow: Workflow, value: string) => `${flow.published?.name} ${flow.published?.trigger}`.toLowerCase().includes(value.trim().toLowerCase());
+  const matches = (flow: Workflow, value: string) => (flow.published?.name ?? '').toLowerCase().includes(value.trim().toLowerCase());
   const attached = state.workflows.filter((flow) => attachedIds.includes(flow.id));
   const available = state.workflows.filter((flow) => flow.published && !attachedIds.includes(flow.id));
   const visibleAvailable = available.filter((flow) => matches(flow, pickerQuery));
@@ -88,7 +92,7 @@ export function AgentWorkflowSection({ agent }: { agent: Agent }) {
   const view = (flow: Workflow) => navigate(`/workflows/${flow.id}?version=published&agent=${encodeURIComponent(agent.id)}`);
   return <div className="detail-resource-page wf-binding-page">
     <div className="detail-toolbar"><h1 className="resource-page-title">工作流</h1><Button type="primary" icon={<IconPlus />} onClick={() => setOpen(true)}>绑定工作流</Button></div>
-    <Input.Search className="resource-page-search" value={query} onChange={setQuery} placeholder="搜索流程名称或触发器" allowClear />
+    <Input.Search className="resource-page-search" value={query} onChange={setQuery} placeholder="搜索工作流名称" allowClear />
     {saveStatus === 'error' && <SaveIndicator />}
     <Table rowKey="id" dataSource={attached.filter((flow) => matches(flow, query))} pagination={false} scroll={{ x: 540 }} noDataElement={<Empty icon={<IconBranch />} description={attached.length ? '未找到匹配的工作流' : '当前 AI Agent 尚未绑定工作流'} />} columns={[
       { title: '名称', width: 180, render: (_: unknown, flow: Workflow) => <div className="wf-name-cell"><span className="wf-resource-icon"><IconBranch /></span><Tooltip title={flow.published?.name}><button className="wf-name-link" onClick={() => view(flow)}>{flow.published?.name}</button></Tooltip></div> },
@@ -96,9 +100,9 @@ export function AgentWorkflowSection({ agent }: { agent: Agent }) {
       { title: '创建者', dataIndex: 'creator', width: 90 },
       { title: '操作', width: 88, render: (_: unknown, flow: Workflow) => <div className="wf-row-actions"><Tooltip title="查看已发布流程"><Button type="text" icon={<IconEye />} aria-label={`查看流程：${flow.published?.name}`} onClick={() => view(flow)} /></Tooltip><Tooltip title="解绑工作流"><Button type="text" danger icon={<IconDelete />} aria-label={`解绑工作流：${flow.published?.name}`} onClick={() => setRemoving(flow)} /></Tooltip></div> },
     ]} />
-    <Modal open={open} title="绑定工作流" className="resource-picker-modal" style={{ maxWidth: 'calc(100vw - 32px)' }} width={600} onCancel={close} okText={selected.length ? `绑定所选工作流（${selected.length}）` : '绑定所选工作流'} okButtonProps={{ disabled: !selected.length }} onOk={() => { dispatch({ type: 'agent.workflows', id: agent.id, workflowIds: [...attachedIds, ...selected] }); close(); Message.success('工作流已绑定'); }}>
-      <Input.Search value={pickerQuery} onChange={setPickerQuery} placeholder="搜索已发布工作流" allowClear />
-      <div className="resource-picker-list wf-picker-list">{visibleAvailable.map((flow) => <Checkbox key={flow.id} checked={selected.includes(flow.id)} onChange={(checked) => setSelected((prev) => checked ? [...prev, flow.id] : prev.filter((id) => id !== flow.id))}><span className="wf-picker-content"><span className="wf-picker-title"><IconBranch /><strong>{flow.published!.name}</strong><Tag color="success">已发布</Tag></span><span className="wf-picker-trigger">{flow.published!.trigger}</span></span></Checkbox>)}</div>
+    <Modal open={open} title="绑定工作流" className="resource-picker-modal" style={{ maxWidth: 'calc(100vw - 32px)' }} width={600} onCancel={close} okText="绑定" okButtonProps={{ disabled: !selected.length }} onOk={() => { dispatch({ type: 'agent.workflows', id: agent.id, workflowIds: [...attachedIds, ...selected] }); close(); Message.success('工作流已绑定'); }}>
+      <Input.Search value={pickerQuery} onChange={setPickerQuery} placeholder="搜索工作流名称" allowClear />
+      <div className="resource-picker-list wf-picker-list">{visibleAvailable.map((flow) => <Checkbox key={flow.id} checked={selected.includes(flow.id)} onChange={(checked) => setSelected((prev) => checked ? [...prev, flow.id] : prev.filter((id) => id !== flow.id))}><span className="resource-picker-row-main"><span className="wf-resource-icon"><IconBranch /></span><strong>{flow.published!.name}</strong></span></Checkbox>)}</div>
       {!visibleAvailable.length && <Empty description={pickerQuery ? '未找到匹配的已发布工作流' : '暂无可绑定的已发布工作流'} />}
     </Modal>
     <Modal open={Boolean(removing)} title="解绑工作流？" onCancel={() => setRemoving(undefined)} okText="解绑" okButtonProps={{ status: 'danger' }} onOk={() => { if (removing) dispatch({ type: 'agent.workflows', id: agent.id, workflowIds: attachedIds.filter((id) => id !== removing.id) }); setRemoving(undefined); Message.success('工作流已解绑'); }}>

@@ -1,6 +1,17 @@
 # 灵犀智能体原型开发路线
 
-## 2026-09-18 GitHub Pages 部署准备（进行中）
+## 2026-09-18 工作流与客服配置体验优化（已完成）
+
+- 左侧导航隐藏「团队」入口，保留历史团队路由与数据，不影响既有实体引用。
+- 工作流列表新增「创建时间」「状态」列，状态从名称列移出；操作栏收敛为更多菜单；搜索范围收敛为工作流名称，搜索占位符同步改为「搜索工作流名称」。
+- AI 客服详情页的绑定工作流弹窗改为多选绑定，仅展示已发布工作流，列表行按「复选框 + 图标 + 流程名称」呈现，底部按钮改为「绑定」。
+- AI 客服详情页的绑定知识库弹窗改为多选绑定，列表样式与绑定工作流弹窗保持一致，底部新增「绑定」按钮。
+- 工作流编排页改为不显示左侧菜单栏的全屏二级页面，顶部导航对齐 AI 客服详情页样式，包含发布状态、最近保存、保存状态与发布按钮。
+- 全局补齐详情区最后一个字段不显示底部分割线的样式约束，避免页面尾部出现多余横线。
+- 收件箱会话详情页同时展示「上一个会话」与「下一个会话」状态，不再只展示单向切换状态。
+- 验证通过：`npm run build`；Playwright 本地预览核验工作流列表、绑定工作流弹窗、绑定知识库弹窗、工作流全屏编排页和收件箱会话上下切换状态。
+
+## 2026-09-18 GitHub Pages 部署准备（已完成）
 
 - 已确认项目技术栈为 React + TypeScript + Vite + Arco Design，构建命令为 `npm run build`。
 - 已完成公开前敏感信息扫描：未发现 `.env`、真实 API Key、Token、密码或私钥；代码中的 `Access Token` 仅为渠道配置模拟表单字段。
@@ -8,7 +19,7 @@
 - 已修正 GitHub Pages 兼容配置：Vite 根据 `GITHUB_REPOSITORY` 自动设置 `base`，路由切换为 `HashRouter`，公开目录静态资源改为跟随 `import.meta.env.BASE_URL`。
 - 已更新 `.gitignore`，排除本地 Playwright、浏览器 profile 和输出缓存，避免将本地验证数据新增进公开仓库。
 - 本地验证通过：`npm install`、`npm run build`、带 `GITHUB_REPOSITORY=Divine-Dragon-Voyage/Lingxi-Agent_demo` 的 Pages 构建、Vite 生产预览；Playwright 验证首页、知识库、渠道管理、静态资源和子页面刷新，控制台 0 错误。
-- 待用户处理：GitHub CLI 当前登录态失效，需要重新登录；公开发布和推送到现有远端仓库 `Divine-Dragon-Voyage/Lingxi-Agent_demo` 仍待确认。
+- 已由用户完成 GitHub CLI 登录并确认公开发布，代码已推送到现有公开仓库 `Divine-Dragon-Voyage/Lingxi-Agent_demo`，GitHub Pages 已可公开访问。
 
 ## 2026-09-17 工作流画布与 AI Agent 绑定（已完成）
 
