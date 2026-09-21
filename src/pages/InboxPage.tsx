@@ -61,7 +61,7 @@ function ChannelLogo({ type }: { type: InboxChannelType }) {
 }
 
 function getLatestMessage(conversation: InboxConversation) {
-  const latest = conversation.messages.at(-1);
+  const latest = conversation.messages.findLast((message) => message.role !== 'system');
   if (!latest) return '';
   if (latest.type === 'image') return `图片：${latest.content}`;
   return latest.content.replace(/\s+/g, ' ');
@@ -123,6 +123,7 @@ export function InboxPage() {
   const [draftAgentIds, setDraftAgentIds] = useState<string[]>([]);
   const [draftChannelIds, setDraftChannelIds] = useState<string[]>([]);
   const [filterKeyword, setFilterKeyword] = useState('');
+  const [messageEdge, setMessageEdge] = useState({ top: false, bottom: false });
   const conversationRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const messageViewportRef = useRef<HTMLDivElement | null>(null);
 
@@ -216,9 +217,21 @@ export function InboxPage() {
 
   const selectedConversation = useMemo(() => inboxConversations.find((item) => item.id === selectedId) ?? null, [selectedId]);
 
+  const updateMessageEdge = useCallback(() => {
+    const viewport = messageViewportRef.current;
+    if (!viewport) return;
+    const threshold = 32;
+    const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+    setMessageEdge({
+      top: viewport.scrollTop <= threshold,
+      bottom: maxScrollTop - viewport.scrollTop <= threshold,
+    });
+  }, []);
+
   useEffect(() => {
     if (!selectedId) return;
     setMessageState('loading');
+    setMessageEdge({ top: false, bottom: false });
     const timer = window.setTimeout(() => setMessageState(demoState === 'message-error' ? 'error' : 'ready'), 280);
     return () => window.clearTimeout(timer);
   }, [demoState, selectedId]);
@@ -229,9 +242,11 @@ export function InboxPage() {
 
   useEffect(() => {
     if (messageState === 'ready') {
-      messageViewportRef.current?.scrollTo({ top: messageViewportRef.current.scrollHeight });
+      const viewport = messageViewportRef.current;
+      viewport?.scrollTo({ top: viewport.scrollHeight });
+      window.requestAnimationFrame(updateMessageEdge);
     }
-  }, [messageState, selectedId]);
+  }, [messageState, selectedId, updateMessageEdge]);
 
   const history = useMemo(() => {
     if (!selectedConversation) return [];
@@ -240,6 +255,9 @@ export function InboxPage() {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [selectedConversation]);
   const historyIndex = history.findIndex((item) => item.id === selectedId);
+  const canSwitchHistory = history.length > 1 && historyIndex >= 0;
+  const previousHistoryConversation = canSwitchHistory ? history[(historyIndex - 1 + history.length) % history.length] : undefined;
+  const nextHistoryConversation = canSwitchHistory ? history[(historyIndex + 1) % history.length] : undefined;
 
   const selectStatus = (nextStatus: InboxStatus) => updateParams({ status: nextStatus, agent: null, conversation: null });
   const selectConversation = (id: string) => updateParams({ conversation: id });
@@ -465,11 +483,11 @@ export function InboxPage() {
           <header className="inbox-detail-header">
             <strong>{selectedConversation.customerName}</strong>
           </header>
-          <div className="inbox-message-viewport" ref={messageViewportRef}>
+          <div className="inbox-message-viewport" ref={messageViewportRef} onScroll={updateMessageEdge}>
             {messageState === 'loading' && <MessageSkeleton />}
             {messageState === 'error' && <div className="inbox-centered-state"><IconExclamationCircle /><strong>消息加载失败</strong><span>当前会话暂时无法读取</span><Button type="primary" icon={<IconRefresh />} onClick={retryMessages}>重新加载</Button></div>}
             {messageState === 'ready' && <>
-              {history.length > 1 && historyIndex >= 0 && <button type="button" className="inbox-thread-jump is-top" disabled={historyIndex >= history.length - 1} onClick={() => switchHistory(history[historyIndex + 1])}><IconArrowUp /> 上一个会话</button>}
+              {previousHistoryConversation && messageEdge.top && <button type="button" className="inbox-thread-jump is-top" onClick={() => switchHistory(previousHistoryConversation)}><IconArrowUp /> 上一个会话</button>}
               {selectedConversation.messages.map((message) => message.role === 'system'
                 ? <div className="inbox-system-message" key={message.id}><span>{message.content} · {formatMessageTime(message.sentAt)}</span></div>
                 : <div className={`inbox-message-row is-${message.role}`} key={message.id}>
@@ -486,12 +504,11 @@ export function InboxPage() {
                   </div>
                   {message.role === 'agent' && <span className="inbox-agent-avatar"><IconRobot /></span>}
                 </div>)}
-              {history.length > 1 && historyIndex >= 0 && <button type="button" className="inbox-thread-jump is-bottom" disabled={historyIndex <= 0} onClick={() => switchHistory(history[historyIndex - 1])}><IconArrowDown /> 下一个会话</button>}
+              {nextHistoryConversation && messageEdge.bottom && <button type="button" className="inbox-thread-jump is-bottom" onClick={() => switchHistory(nextHistoryConversation)}><IconArrowDown /> 下一个会话</button>}
             </>}
           </div>
           <footer className="inbox-detail-footer">
             <span>{selectedFooterText}</span>
-            {selectedConversation.state === 'closed' && <Button size="small" type="secondary">重新打开</Button>}
           </footer>
         </>}
       </section>

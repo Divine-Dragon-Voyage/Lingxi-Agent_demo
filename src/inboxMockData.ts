@@ -26,6 +26,15 @@ const atMinute = (value: string, minutes: number, seconds: number) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}+08:00`;
 };
 
+const atDay = (value: string, days: number, minutes = 0) => {
+  const date = new Date(value);
+  date.setDate(date.getDate() + days);
+  date.setMinutes(date.getMinutes() + minutes);
+  date.setSeconds(0, 0);
+  const pad = (input: number) => String(input).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}+08:00`;
+};
+
 type ConversationInput = Omit<InboxConversation, 'messages'> & {
   customerMessage: string;
   agentMessage: string;
@@ -163,6 +172,39 @@ const enrichConversation = (item: InboxConversation): InboxConversation => richC
   ? { ...item, messages: richConversationMessages[item.id] }
   : item;
 
+const createHistorySamples = (item: InboxConversation): InboxConversation[] => [
+  closed(
+    `${item.id}-history-1`,
+    item.visitorId,
+    item.customerName,
+    item.channelId,
+    item.channelType,
+    item.channelName,
+    item.agentId,
+    item.agentName,
+    'ai_resolved',
+    atDay(item.createdAt, -3),
+    atDay(item.createdAt, -3, 8),
+    '我想确认一下之前咨询过的问题处理进度。',
+    '我已查询到上次记录，当前状态已经同步完成。',
+  ),
+  closed(
+    `${item.id}-history-2`,
+    item.visitorId,
+    item.customerName,
+    item.channelId,
+    item.channelType,
+    item.channelName,
+    item.agentId,
+    item.agentName,
+    'timeout',
+    atDay(item.createdAt, -7),
+    atDay(item.createdAt, -7, 18),
+    '这个问题我稍后再补充资料。',
+    '好的，您补充资料后我会继续按当前问题跟进。',
+  ),
+];
+
 export const inboxAgents = [
   { id: 'payment-agent', name: 'Payment Agent' },
   { id: 'account-agent', name: 'Account Agent' },
@@ -190,6 +232,7 @@ const baseInboxConversations: InboxConversation[] = [
   processing('conv-p-012', 'customer-vip-nora', 'Nora_V8', 'web-payment', 'livechat', '官网充值客服', 'vip-agent', 'VIP Agent', '2026-09-16T08:09:00+08:00', '2026-09-16T08:37:00+08:00', '我的专属提款额度没有更新。', '我正在查询今日 VIP 额度更新状态。'),
 
   closed('conv-r-001', 'customer-amy77', 'Amy77', 'web-payment', 'livechat', '官网充值客服', 'payment-agent', 'Payment Agent', 'ai_resolved', '2026-09-15T17:18:00+08:00', '2026-09-15T17:24:00+08:00', '怎么充值？', '进入充值页面后选择支付方式，输入金额并确认即可。'),
+  closed('conv-r-007', 'customer-mike', 'Mike', 'tg-payment', 'telegram', 'TG 充值渠道', 'payment-agent', 'Payment Agent', 'ai_resolved', '2026-09-15T12:08:00+08:00', '2026-09-15T12:17:00+08:00', '昨天充值成功后多久到账？', 'TG 渠道充值成功后通常会在 1 到 3 分钟内同步到账。'),
   closed('conv-r-002', 'visitor-839201', 'Visitor #839201', 'web-payment', 'livechat', '官网充值客服', 'payment-agent', 'Payment Agent', 'ai_resolved', '2026-09-14T14:08:00+08:00', '2026-09-14T14:16:00+08:00', '充值支持哪些支付方式？', '目前支持银行卡、电子钱包和数字货币充值。'),
   closed('conv-r-003', 'customer-ken102', 'Ken102', 'tg-payment', 'telegram', 'TG 充值渠道', 'payment-agent', 'Payment Agent', 'ai_resolved', '2026-09-14T11:02:00+08:00', '2026-09-14T11:09:00+08:00', '最低充值金额是多少？', '当前最低充值金额为 100，页面会根据支付方式展示具体限制。'),
   closed('conv-r-004', 'customer-sara5', 'Sara_5', 'line-service', 'livechat', 'LINE 客服渠道', 'account-agent', 'Account Agent', 'ai_resolved', '2026-09-13T19:31:00+08:00', '2026-09-13T19:40:00+08:00', '如何修改登录密码？', '请进入账户安全页面，完成身份验证后修改密码。'),
@@ -201,7 +244,11 @@ const baseInboxConversations: InboxConversation[] = [
   closed('conv-h-003', 'customer-vip-emma', 'Emma_V9', 'line-service', 'livechat', 'LINE 客服渠道', 'vip-agent', 'VIP Agent', 'human_handoff', '2026-09-11T13:10:00+08:00', '2026-09-11T13:18:00+08:00', '请让 VIP 客户经理联系我。', '好的，我将本次会话转交给 VIP 人工服务团队。'),
 
   closed('conv-t-001', 'visitor-839201', 'Visitor #839201', 'web-payment', 'livechat', '官网充值客服', 'payment-agent', 'Payment Agent', 'timeout', '2026-09-10T10:26:00+08:00', '2026-09-10T10:46:00+08:00', '我想查询昨天的充值。', '请提供充值订单号，我会继续为您查询。'),
+  closed('conv-t-003', 'customer-mike', 'Mike', 'tg-payment', 'telegram', 'TG 充值渠道', 'payment-agent', 'Payment Agent', 'timeout', '2026-09-10T09:32:00+08:00', '2026-09-10T09:52:00+08:00', '我之前有一笔 TG 充值没看到记录。', '请提供充值哈希或订单号，我会继续帮您核对。'),
   closed('conv-t-002', 'visitor-117302', 'Visitor #117302', 'line-service', 'livechat', 'LINE 客服渠道', 'account-agent', 'Account Agent', 'timeout', '2026-09-09T17:05:00+08:00', '2026-09-09T17:25:00+08:00', '我忘记了账户绑定信息。', '请提供可以验证账户归属的信息。'),
 ];
 
-export const inboxConversations: InboxConversation[] = baseInboxConversations.map(enrichConversation);
+export const inboxConversations: InboxConversation[] = [
+  ...baseInboxConversations,
+  ...baseInboxConversations.flatMap(createHistorySamples),
+].map(enrichConversation);

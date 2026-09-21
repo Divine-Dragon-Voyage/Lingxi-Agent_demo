@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IconBranch, IconCopy, IconDelete, IconEdit, IconEye, IconMore, IconPlus, IconRefresh, IconCheck, IconLoading } from '@arco-design/web-react/icon';
+import { IconBranch, IconCopy, IconDelete, IconEdit, IconMore, IconPlus, IconRefresh, IconCheck, IconLoading } from '@arco-design/web-react/icon';
 import { Button, Checkbox, Dropdown, Empty, Form, Input, Menu, Message, Modal, Table, Tag, Tooltip } from '../components/ui';
 import { PageHeader } from '../components/PageHeader';
 import { useAppStore } from '../store';
@@ -98,7 +98,7 @@ export function AgentWorkflowSection({ agent }: { agent: Agent }) {
       { title: '名称', width: 180, render: (_: unknown, flow: Workflow) => <div className="wf-name-cell"><span className="wf-resource-icon"><IconBranch /></span><Tooltip title={flow.published?.name}><button className="wf-name-link" onClick={() => view(flow)}>{flow.published?.name}</button></Tooltip></div> },
       { title: '触发器', render: (_: unknown, flow: Workflow) => <Tooltip title={flow.published?.trigger}><span className="wf-trigger-text">{flow.published?.trigger}</span></Tooltip> },
       { title: '创建者', dataIndex: 'creator', width: 90 },
-      { title: '操作', width: 88, render: (_: unknown, flow: Workflow) => <div className="wf-row-actions"><Tooltip title="查看已发布流程"><Button type="text" icon={<IconEye />} aria-label={`查看流程：${flow.published?.name}`} onClick={() => view(flow)} /></Tooltip><Tooltip title="解绑工作流"><Button type="text" danger icon={<IconDelete />} aria-label={`解绑工作流：${flow.published?.name}`} onClick={() => setRemoving(flow)} /></Tooltip></div> },
+      { title: '操作', width: 64, render: (_: unknown, flow: Workflow) => <div className="wf-row-actions"><Tooltip title="解绑工作流"><Button type="text" danger icon={<IconDelete />} aria-label={`解绑工作流：${flow.published?.name}`} onClick={() => setRemoving(flow)} /></Tooltip></div> },
     ]} />
     <Modal open={open} title="绑定工作流" className="resource-picker-modal" style={{ maxWidth: 'calc(100vw - 32px)' }} width={600} onCancel={close} okText="绑定" okButtonProps={{ disabled: !selected.length }} onOk={() => { dispatch({ type: 'agent.workflows', id: agent.id, workflowIds: [...attachedIds, ...selected] }); close(); Message.success('工作流已绑定'); }}>
       <Input.Search value={pickerQuery} onChange={setPickerQuery} placeholder="搜索工作流名称" allowClear />
