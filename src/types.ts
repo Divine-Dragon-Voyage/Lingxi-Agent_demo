@@ -181,7 +181,11 @@ export interface InboxConversation {
 }
 
 export interface AppState {
+  session?: import('./auth').DemoSession | null;
+  ui: UiState;
+  tenantAccounts: TenantAccount[];
   workflows: import('./workflows/model').Workflow[];
+  workflowExamplesVersion?: number;
   demoDataVersion?: number;
   agents: Agent[];
   teams: Team[];
@@ -189,7 +193,39 @@ export interface AppState {
   skills: Skill[];
   channels: Channel[];
   sessions: Session[];
+  members: TenantMember[];
+  roles: TenantRole[];
+  currentMemberId: string;
   settings: SettingsConfig;
+}
+
+export interface TenantRole {
+  id: string;
+  name: string;
+  builtin?: boolean;
+  menuKeys: string[];
+  createdAt: string;
+}
+
+export interface TenantMember {
+  id: string;
+  username: string;
+  roleId: string;
+  enabled: boolean;
+  createdAt: string;
+}
+
+export type TenantWorkspacePermission = 'agents' | 'livechat';
+
+export interface TenantAccount {
+  id: string;
+  tenantName: string;
+  ownerUsername: string;
+  password: string;
+  workspacePermissions: TenantWorkspacePermission[];
+  enabled: boolean;
+  createdAt: string;
+  lastLoginAt?: string;
 }
 
 export interface ChatTimeoutSettings {
@@ -199,4 +235,10 @@ export interface ChatTimeoutSettings {
 
 export interface SettingsConfig {
   chatTimeout: ChatTimeoutSettings;
+}
+
+export interface UiState {
+  language: import('./i18n').AppLanguage;
+  workspaceMode: import('./i18n').WorkspaceMode;
+  lastAgentsPath?: string;
 }

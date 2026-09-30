@@ -1,63 +1,56 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ReactFlow, ReactFlowProvider, Background, BackgroundVariant, Controls, MiniMap, Handle, Position, applyNodeChanges, useReactFlow, MarkerType } from '@xyflow/react';
+import { ReactFlow, ReactFlowProvider, Background, BackgroundVariant, Controls, MiniMap, Handle, Position, applyNodeChanges, useReactFlow, MarkerType, useUpdateNodeInternals, useNodesInitialized } from '@xyflow/react';
 import type { Connection, NodeProps, NodeChange } from '@xyflow/react';
-import { IconArrowLeft, IconBranch, IconCheck, IconClose, IconCode, IconDelete, IconEdit, IconExclamationCircle, IconMessage, IconPlus, IconRobot, IconSend, IconUserGroup, IconPlayArrow } from '@arco-design/web-react/icon';
-import { Button, Empty, Form, Input, Message, Modal, Select, Switch, Tooltip, Tag } from '../components/ui';
-import { TeamSelect } from '../components/TeamSelect';
+import { IconArrowLeft, IconBranch, IconCheck, IconClose, IconCode, IconDelete, IconEdit, IconExclamationCircle, IconMessage, IconPlus, IconRobot, IconSend, IconPlayArrow, IconClockCircle } from '@arco-design/web-react/icon';
+import { Button, Empty, Message, Modal, Tooltip, Tag } from '../components/ui';
+import { NodeForm } from './NodeForm';
 import { useAppStore } from '../store';
 import { SaveIndicator, WorkflowBasicsModal, WorkflowStatus } from './WorkflowPages';
-import { connectNodes, hasChanges, makeNode, nodeLabels, validateWorkflow } from './model';
+import { connectNodes, hasChanges, makeNode, nodeLabels, validateWorkflow, nodePorts, infoItems, branches } from './model';
 import type { NodeKind, Workflow, WorkflowDraft, WorkflowNode, WorkflowIssue } from './model';
 import '@xyflow/react/dist/style.css';
 import './workflow.css';
 
 const formatDate = (value: string) => value.replace('T', ' ').slice(0, 16);
-const nodeIcons = { start: IconPlayArrow, end: IconCheck, ai: IconRobot, collect: IconMessage, api: IconCode, condition: IconBranch, reply: IconSend, handoff: IconUserGroup };
-const groups: { title: string; nodes: NodeKind[] }[] = [{ title: '任务', nodes: ['ai'] }, { title: '信息', nodes: ['collect', 'api'] }, { title: '判断', nodes: ['condition'] }, { title: '动作', nodes: ['reply', 'handoff', 'end'] }];
+const nodeIcons = { start: IconPlayArrow, end: IconCheck, ai: IconRobot, collect: IconMessage, api: IconCode, condition: IconBranch, reply: IconSend, wait: IconClockCircle };
+const groups: { title: string; nodes: NodeKind[] }[] = [{ title: '任务', nodes: ['ai'] }, { title: '信息', nodes: ['collect', 'api'] }, { title: '判断', nodes: ['condition'] }, { title: '动作', nodes: ['reply', 'wait'] }, { title: '流程控制', nodes: ['end'] }];
 function nodeSummary(node: WorkflowNode['data']) {
   const config = node.config;
-  if (node.kind === 'collect') return config.question || '配置提问内容与收集字段';
-  if (node.kind === 'api') return config.url ? `${config.method} ${config.url}` : '配置请求与模拟返回';
-  if (node.kind === 'condition') return config.field ? `${config.field} ${config.operator === 'equals' ? '=' : config.operator === 'contains' ? '包含' : '≠'} ${config.value || ''}` : '配置判断条件';
-  return config.prompt || config.content || config.message || '';
+  if (node.kind === 'collect') return infoItems(config).map((item) => item.name).join('、') || '配置信息项';
+  if (node.kind === 'api') return config.url ? `${config.method} ${config.url}` : '配置请求与出参';
+  if (node.kind === 'condition') return branches(config).map((branch) => branch.name).join('、');
+  if (node.kind === 'wait') return config.expected || '配置等待业务结果';
+  return config.goal || config.prompt || config.content || config.message || '';
 }
-const CanvasNode = memo(function CanvasNode({ data, selected, isConnectable }: NodeProps<WorkflowNode>) {
+const CanvasNode = memo(function CanvasNode({ id, data, selected, isConnectable }: NodeProps<WorkflowNode>) {
   const Icon = nodeIcons[data.kind];
+  const ports = nodePorts({ data } as WorkflowNode);
+  const signature = ports.map((port) => port.id).join(',');
+  const updateNodeInternals = useUpdateNodeInternals();
+  useEffect(() => { updateNodeInternals(id); }, [id, signature, updateNodeInternals]);
   const terminal = data.kind === 'start' || data.kind === 'end';
-  return <div className={`wf-node wf-node-${data.kind}${terminal ? ' wf-node-terminal' : ''}${selected ? ' is-selected' : ''}${data.invalid ? ' is-invalid' : ''}`}>
+  return <div style={ports.length > 1 ? { height: 84 + ports.length * 28 } : undefined} className={`wf-node wf-node-${data.kind}${terminal ? ' wf-node-terminal' : ''}${selected ? ' is-selected' : ''}${data.invalid ? ' is-invalid' : ''}`}>
     {data.kind !== 'start' && <Handle type="target" position={Position.Left} id="in" isConnectable={isConnectable} />}
     <div className="wf-node-title"><span className={`wf-node-icon wf-kind-${data.kind}`}><Icon /></span><strong title={data.label}>{data.label}</strong>{data.invalid && <IconExclamationCircle className="wf-error-icon" />}</div>
     {!terminal && <div className="wf-node-summary">{nodeSummary(data)}</div>}
-    {data.kind === 'condition' ? <><span className="wf-port-label wf-port-yes">满足</span><Handle type="source" position={Position.Right} id="yes" style={{ top: '48%' }} isConnectable={isConnectable} /><span className="wf-port-label wf-port-no">不满足</span><Handle type="source" position={Position.Right} id="no" style={{ top: '82%' }} isConnectable={isConnectable} /></> : data.kind !== 'end' && <Handle type="source" position={Position.Right} id="out" isConnectable={isConnectable} />}
+    {ports.map((port, index) => <div key={port.id}>{ports.length > 1 && <span className="wf-port-label" style={{ top: 78 + index * 28 }}>{port.name}</span>}<Handle type="source" position={Position.Right} id={port.id} style={{ top: ports.length > 1 ? 88 + index * 28 : '50%' }} isConnectable={isConnectable} /></div>)}
   </div>;
 });
 const nodeTypes = { workflow: CanvasNode };
-
-function NodeForm({ node, draft, readOnly, onChange }: { node: WorkflowNode; draft: WorkflowDraft; readOnly: boolean; onChange: (node: WorkflowNode) => void }) {
-  const { state } = useAppStore();
-  const { kind, config } = node.data;
-  const set = (key: string, value: string) => onChange({ ...node, data: { ...node.data, config: { ...config, [key]: value } } });
-  const field = (key: string, label: string, multiline = false, placeholder?: string) => <Form.Item key={key} label={<label htmlFor={`wf-config-${key}`}>{label}</label>} required>
-    {multiline ? <Input.TextArea id={`wf-config-${key}`} value={config[key] ?? ''} onChange={(value: string) => set(key, value)} rows={key === 'result' ? 7 : 4} maxLength={10000} readOnly={readOnly} placeholder={placeholder} /> : <Input id={`wf-config-${key}`} value={config[key] ?? ''} onChange={(value: string) => set(key, value)} maxLength={500} readOnly={readOnly} placeholder={placeholder} />}
-  </Form.Item>;
-  const variables = draft.nodes.filter((item) => item.data.kind === 'collect' && item.data.config.field).map((item) => item.data.config.field);
-  return <Form layout="vertical" className="wf-node-form">
-    <Form.Item label={<label htmlFor="wf-node-name">节点名称</label>} required><Input id="wf-node-name" value={node.data.label} maxLength={50} readOnly={readOnly || kind === 'start' || kind === 'end'} onChange={(label: string) => onChange({ ...node, data: { ...node.data, label } })} /></Form.Item>
-    {kind === 'ai' && field('prompt', '任务提示词', true, '例如：根据订单信息整理当前进度与下一步处理建议。')}
-    {kind === 'collect' && <>{field('question', '提问内容', true)}{field('field', '收集字段', false, '例如：order_id')}<Form.Item label="必填"><Switch aria-label="收集字段必填" disabled={readOnly} checked={config.required === 'true'} onChange={(checked) => set('required', String(checked))} /></Form.Item></>}
-    {kind === 'api' && <><Form.Item label="请求方式"><Select aria-label="请求方式" disabled={readOnly} value={config.method} options={['GET', 'POST', 'PUT', 'DELETE']} onChange={(value) => set('method', value)} /></Form.Item>{field('url', '接口地址', false, 'https://example.com/orders')}{field('parameters', '请求参数', true, '{}')}{field('result', '模拟返回结果', true, '{}')}</>}
-    {kind === 'condition' && <>{field('field', '判断字段', false, '例如：status')}<Form.Item label="判断方式"><Select aria-label="判断方式" disabled={readOnly} value={config.operator} onChange={(value) => set('operator', value)} options={[{ value: 'equals', label: '等于' }, { value: 'notEquals', label: '不等于' }, { value: 'contains', label: '包含' }]} /></Form.Item>{field('value', '比较值')}<div className="wf-branch-exits"><span>满足条件</span><Tag>满足</Tag><span>默认分支</span><Tag>不满足</Tag></div></>}
-    {kind === 'reply' && <>{field('content', '回复内容', true)}{!!variables.length && !readOnly && <Form.Item label="插入字段"><Select aria-label="插入字段" placeholder="选择已收集的字段" value={undefined} options={variables.map((name) => ({ label: name, value: name }))} onChange={(value) => set('content', `${config.content ?? ''}{{${value}}}`)} /></Form.Item>}</>}
-    {kind === 'handoff' && <><Form.Item label="目标团队" required>{readOnly ? <Input readOnly value={state.teams.find((team) => team.id === config.teamId)?.name ?? '团队已不存在'} /> : <TeamSelect teams={state.teams} value={config.teamId} onChange={(value) => set('teamId', String(value ?? ''))} />}</Form.Item>{field('message', '转接话术', true)}</>}
-  </Form>;
-}
 
 function EditorCanvas({ flow, readOnly, returnTo }: { flow: Workflow; readOnly: boolean; returnTo: string }) {
   const { state, dispatch, saveStatus } = useAppStore();
   const navigate = useNavigate();
   const rf = useReactFlow<WorkflowNode>();
+  const initialized = useNodesInitialized();
+  const fitted = useRef(false);
+  useEffect(() => {
+    if (!initialized || fitted.current) return;
+    fitted.current = true;
+    void rf.fitView({ padding: 0.16, maxZoom: 1 });
+  }, [initialized, rf]);
   const canvasRef = useRef<HTMLDivElement>(null);
   const draft = readOnly ? flow.published! : flow.draft;
   const [selectedId, setSelectedId] = useState<string>();
@@ -68,13 +61,25 @@ function EditorCanvas({ flow, readOnly, returnTo }: { flow: Workflow; readOnly: 
   const [awaitingPublish, setAwaitingPublish] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
   const [measurements, setMeasurements] = useState<Record<string, { width: number; height: number }>>({});
-  const issues = checked && !readOnly ? validateWorkflow(draft, state.teams.map((team) => team.id)) : [];
+  const issues = checked && !readOnly ? validateWorkflow(draft, state.documents.filter((doc) => doc.status === 'success').map((doc) => doc.id)) : [];
   const selectedNode = draft.nodes.find((node) => node.id === selectedId);
   const selectedEdge = draft.edges.find((edge) => edge.id === edgeId);
   useEffect(() => {
     if (awaitingPublish && flow.published && !hasChanges(flow) && saveStatus === 'saved') { Message.success('工作流已发布'); setAwaitingPublish(false); }
   }, [awaitingPublish, flow, saveStatus]);
   const save = (next: WorkflowDraft) => { if (!readOnly) dispatch({ type: 'workflow.save', id: flow.id, draft: next }); };
+  const updateNode = (node: WorkflowNode) => {
+    const ports = nodePorts(node);
+    let edges = draft.edges.filter((edge) => edge.source !== node.id || ports.some((port) => port.id === edge.sourceHandle));
+    if (node.data.kind === 'wait' && Object.hasOwn(node.data.config, 'timeoutTarget')) {
+      edges = edges.filter((edge) => edge.source !== node.id || edge.sourceHandle !== 'timeout');
+      const target = draft.nodes.find((item) => item.id === node.data.config.timeoutTarget);
+      if (target) edges.push(connectNodes(node, target, 'timeout'));
+    }
+    if (node.data.kind === 'wait') { const { timeoutTarget: _target, ...config } = node.data.config; node = { ...node, data: { ...node.data, config } }; }
+    edges = edges.map((edge) => edge.source === node.id ? { ...edge, label: ports.find((port) => port.id === edge.sourceHandle)?.name || undefined } : edge);
+    save({ ...draft, nodes: draft.nodes.map((item) => item.id === node.id ? node : item), edges });
+  };
   const addNode = (kind: NodeKind, point?: { x: number; y: number }) => {
     const bounds = canvasRef.current?.getBoundingClientRect();
     const position = point ?? rf.screenToFlowPosition({ x: (bounds?.left ?? 0) + (bounds?.width ?? 800) / 2 - 112, y: (bounds?.top ?? 0) + (bounds?.height ?? 500) / 2 - 55 });
@@ -127,7 +132,7 @@ function EditorCanvas({ flow, readOnly, returnTo }: { flow: Workflow; readOnly: 
   };
   const focusIssue = (issue: WorkflowIssue) => {
     if (!issue.nodeId) {
-      if (issue.message.includes('名称') || issue.message.includes('触发器')) setEditingBasics(true);
+      if (issue.message.includes('名称') || issue.message.includes('触发提示词')) setEditingBasics(true);
       else { setSelectedId(undefined); setEdgeId(undefined); setPanelOpen(true); }
       return;
     }
@@ -136,8 +141,8 @@ function EditorCanvas({ flow, readOnly, returnTo }: { flow: Workflow; readOnly: 
   };
   const publish = () => {
     setChecked(true); setIssuesOpen(true);
-    const errors = validateWorkflow(draft, state.teams.map((team) => team.id));
-    if (errors.length) { focusIssue(errors[0]); Message.error('请完成流程配置后再发布'); return; }
+    const errors = validateWorkflow(draft, state.documents.filter((doc) => doc.status === 'success').map((doc) => doc.id));
+    if (errors.length) { focusIssue(errors[0]); Message.error(errors[0].message); return; }
     Modal.confirm({ title: '发布工作流？', content: `发布「${draft.name}」后，AI Agent 可绑定此流程。已绑定的 AI Agent 将使用本次发布内容。`, okText: '确认发布', onOk: () => { dispatch({ type: 'workflow.publish', id: flow.id }); setAwaitingPublish(true); } });
   };
   return <div className="wf-editor wf-editor-fullpage">
@@ -166,7 +171,7 @@ function EditorCanvas({ flow, readOnly, returnTo }: { flow: Workflow; readOnly: 
       {panelOpen && <aside className="wf-panel">
         <div className="wf-panel-header"><h2>{selectedNode ? nodeLabels[selectedNode.data.kind] : selectedEdge ? '连线' : readOnly ? '流程信息' : '添加节点'}</h2>{(selectedNode || selectedEdge) && <Tooltip title="关闭配置"><Button type="text" icon={<IconClose />} aria-label="关闭节点配置" onClick={() => { setSelectedId(undefined); setEdgeId(undefined); }} /></Tooltip>}</div>
         <div className="wf-panel-body">
-          {selectedNode ? <><NodeForm node={selectedNode} draft={draft} readOnly={readOnly} onChange={(node) => save({ ...draft, nodes: draft.nodes.map((item) => item.id === node.id ? node : item) })} />{!readOnly && selectedNode.data.kind !== 'start' && <Button danger icon={<IconDelete />} onClick={removeSelection}>删除节点</Button>}</> : selectedEdge ? <><p>{draft.nodes.find((node) => node.id === selectedEdge.source)?.data.label} → {draft.nodes.find((node) => node.id === selectedEdge.target)?.data.label}</p>{!readOnly && <Button danger icon={<IconDelete />} onClick={removeSelection}>删除连线</Button>}</> : readOnly ? <div className="wf-published-info"><span>触发器</span><p>{draft.trigger}</p><span>创建者</span><p>{flow.creator}</p><span>发布时间</span><p>{flow.publishedAt?.replace('T', ' ').slice(0, 16)}</p></div> : groups.map((group) => <section className="wf-node-group" key={group.title}><h3>{group.title}</h3>{group.nodes.map((kind) => { const Icon = nodeIcons[kind]; return <button className="wf-library-node" key={kind} draggable onDragStart={(event) => { event.dataTransfer.setData('application/lingxi-workflow', kind); event.dataTransfer.effectAllowed = 'move'; }} onClick={() => addNode(kind)}><span className={`wf-node-icon wf-kind-${kind}`}><Icon /></span><span>{nodeLabels[kind]}</span><IconPlus className="wf-library-add" /></button>; })}</section>)}
+          {selectedNode ? <><NodeForm node={selectedNode} draft={draft} readOnly={readOnly} onChange={updateNode} />{!readOnly && selectedNode.data.kind !== 'start' && <Button danger icon={<IconDelete />} onClick={removeSelection}>删除节点</Button>}</> : selectedEdge ? <><p>{draft.nodes.find((node) => node.id === selectedEdge.source)?.data.label} → {draft.nodes.find((node) => node.id === selectedEdge.target)?.data.label}</p>{!readOnly && <Button danger icon={<IconDelete />} onClick={removeSelection}>删除连线</Button>}</> : readOnly ? <div className="wf-published-info"><span>触发提示词</span><p>{draft.trigger}</p><span>创建者</span><p>{flow.creator}</p><span>发布时间</span><p>{flow.publishedAt?.replace('T', ' ').slice(0, 16)}</p></div> : groups.map((group) => <section className="wf-node-group" key={group.title}><h3>{group.title}</h3>{group.nodes.map((kind) => { const Icon = nodeIcons[kind]; return <button className="wf-library-node" key={kind} draggable onDragStart={(event) => { event.dataTransfer.setData('application/lingxi-workflow', kind); event.dataTransfer.effectAllowed = 'move'; }} onClick={() => addNode(kind)}><span className={`wf-node-icon wf-kind-${kind}`}><Icon /></span><span>{nodeLabels[kind]}</span><IconPlus className="wf-library-add" /></button>; })}</section>)}
         </div>
       </aside>}
     </div>

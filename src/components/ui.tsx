@@ -29,6 +29,7 @@ import {
   Tooltip as ArcoTooltip,
   Tabs as ArcoTabs,
   Descriptions as ArcoDescriptions,
+  Tree as ArcoTree,
   Upload,
 } from '@arco-design/web-react';
 import { forwardRef, useEffect, useRef } from 'react';
@@ -123,4 +124,8 @@ export const Modal = Object.assign(function Modal({ open, destroyOnHidden, after
 
 export function Tabs({ activeKey, items, onChange, ...props }: any) {
   return <ArcoTabs activeTab={activeKey} onChange={onChange} {...props}>{items?.map((item: any) => <ArcoTabs.TabPane key={item.key} title={item.label} />)}</ArcoTabs>;
+}
+
+export function Tree(props: any) {
+  return <ArcoTree {...props} />;
 }

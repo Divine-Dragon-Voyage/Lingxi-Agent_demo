@@ -1,4 +1,5 @@
-import type { AgentConfig, AppState, Channel, Flow, Guard, Session, Skill, Team } from './types';
+import type { AgentConfig, AppState, Channel, Flow, Guard, Session, Skill, Team, TenantMember, TenantRole } from './types';
+import { MENU_LEAF_KEYS } from './permissions';
 
 export const now = () => new Date().toISOString();
 
@@ -6,8 +7,34 @@ const at = (day: string, time: string) => `2026-07-${day}T${time}:00+08:00`;
 const cloneConfig = (config: AgentConfig): AgentConfig => JSON.parse(JSON.stringify(config));
 
 export const KNOWLEDGE_DELETE_DEMO_VERSION = 1;
+export const MEMBERS_PERMISSIONS_DEMO_VERSION = 4;
 export const BOUND_DELETE_DEMO_DOCUMENT_ID = 'doc-delete-bound-confirmation';
 export const UNBOUND_DELETE_DEMO_DOCUMENT_ID = 'doc-delete-unbound-confirmation';
+
+export const seedRoles: TenantRole[] = [
+  { id: 'role-owner', name: 'Owner', builtin: true, menuKeys: [], createdAt: at('01', '09:00') },
+  { id: 'role-admin', name: '超级管理员', builtin: true, menuKeys: [...MENU_LEAF_KEYS], createdAt: at('01', '09:10') },
+  { id: 'role-ai-ops', name: 'AI运营', menuKeys: ['inbox', 'agents', 'knowledge', 'workflows'], createdAt: at('08', '10:12') },
+  { id: 'role-support-lead', name: '客服主管', menuKeys: ['inbox', 'agents', 'channels', 'settings:chat-timeout', 'settings:members', 'settings:roles'], createdAt: at('06', '14:40') },
+  { id: 'role-finance', name: '财务专员', menuKeys: ['inbox'], createdAt: at('03', '11:05') },
+];
+
+export const seedMembers: TenantMember[] = [
+  { id: 'member-lusenbao49', username: 'lusenbao49', roleId: 'role-owner', enabled: true, createdAt: at('01', '09:00') },
+  { id: 'member-boss', username: 'boss', roleId: 'role-admin', enabled: true, createdAt: at('01', '09:15') },
+  { id: 'member-owen88', username: 'owen88', roleId: 'role-support-lead', enabled: true, createdAt: at('20', '16:20') },
+  { id: 'member-ava99', username: 'ava99', roleId: 'role-support-lead', enabled: true, createdAt: at('18', '10:02') },
+  { id: 'member-jason01', username: 'jason01', roleId: 'role-ai-ops', enabled: true, createdAt: at('15', '09:45') },
+  { id: 'member-david88', username: 'david88', roleId: 'role-ai-ops', enabled: true, createdAt: at('14', '15:30') },
+  { id: 'member-lina88', username: 'lina88', roleId: 'role-ai-ops', enabled: true, createdAt: at('13', '11:18') },
+  { id: 'member-carlos88', username: 'carlos88', roleId: 'role-ai-ops', enabled: false, createdAt: at('12', '17:26') },
+  { id: 'member-emma88', username: 'emma88', roleId: 'role-ai-ops', enabled: true, createdAt: at('11', '10:54') },
+  { id: 'member-noah88', username: 'noah88', roleId: 'role-ai-ops', enabled: true, createdAt: at('09', '14:37') },
+  { id: 'member-olivia88', username: 'olivia88', roleId: 'role-ai-ops', enabled: true, createdAt: at('07', '09:24') },
+  { id: 'member-henry88', username: 'henry88', roleId: 'role-ai-ops', enabled: false, createdAt: at('05', '16:08') },
+];
+
+export const SEED_CURRENT_MEMBER_ID = 'member-lusenbao49';
 
 const flow = (id: string, name: string, trigger: string, steps: string[], updatedAt: string): Flow => ({
   id,
@@ -248,8 +275,15 @@ const teams: Team[] = [
 ];
 
 export const seedState: AppState = {
+  ui: { language: 'zh-CN', workspaceMode: 'agents' },
+  tenantAccounts: [
+    { id: 'tenant-lusenbao', tenantName: '灵犀演示租户', ownerUsername: 'lusenbao49', password: 'Demo12345678!', workspacePermissions: ['agents', 'livechat'], enabled: true, createdAt: at('01', '09:00'), lastLoginAt: at('29', '22:30') },
+    { id: 'tenant-ai-only', tenantName: 'AI Agents 试用客户', ownerUsername: 'ai_owner', password: 'Demo12345678!', workspacePermissions: ['agents'], enabled: true, createdAt: at('12', '10:12'), lastLoginAt: at('29', '18:40') },
+    { id: 'tenant-livechat-only', tenantName: '在线客服试用客户', ownerUsername: 'livechat_owner', password: 'Demo12345678!', workspacePermissions: ['livechat'], enabled: true, createdAt: at('18', '14:28'), lastLoginAt: at('28', '16:05') },
+    { id: 'tenant-disabled', tenantName: '已停用客户', ownerUsername: 'disabled_owner', password: 'Demo12345678!', workspacePermissions: ['agents', 'livechat'], enabled: false, createdAt: at('20', '11:32'), lastLoginAt: at('26', '09:18') },
+  ],
   workflows: [],
-  demoDataVersion: KNOWLEDGE_DELETE_DEMO_VERSION,
+  demoDataVersion: MEMBERS_PERMISSIONS_DEMO_VERSION,
   agents: [
     { id: 'agent-support', name: '客服接待', description: '处理订单查询、物流进度、退款申请和售后问题，并在必要时转接人工客服。', status: 'published', updatedAt: at('11', '09:18'), teamIds: ['100000', '100001'], acceptingChats: true, draft: supportDraft, published: cloneConfig(supportPublished) },
     { id: 'agent-sales', name: '售前咨询', description: '介绍产品能力与套餐权益，收集企业采购需求并记录销售线索。', status: 'published', updatedAt: at('10', '18:36'), teamIds: ['100000', '100002'], acceptingChats: false, draft: { ...cloneConfig(salesConfig), transferToHuman: { enabled: true, mode: 'specified', teamId: '100002' } }, published: { ...cloneConfig(salesConfig), transferToHuman: { enabled: true, mode: 'specified', teamId: '100002' } } },
@@ -284,6 +318,9 @@ export const seedState: AppState = {
     channel({ id: 'channel-vip', type: 'livechat', name: '会员专属服务', agentId: 'agent-vip', enabled: true, accountId: 'lc_demo_vip', accessToken: 'mock_livechat_token_vip', webhookUrl: 'https://im-support.example.com/webhooks/livechat/channel-vip', receiveGroups: ['vip_service'], humanGroups: ['vip_human_service'], opening: '你好，欢迎使用会员专属服务。', hotQuestions: ['如何查询我的会员等级？', '积分什么时候到账？'], ending: '感谢使用会员专属服务。', humanEnabled: true, humanFallback: '专属客服当前正在服务其他会员，请稍后再试。', updatedAt: at('08', '14:16') }),
     channel({ id: 'channel-logistics-backup', type: 'livechat', name: '物流服务备用通道', agentId: 'agent-logistics', enabled: false, accountId: 'lc_demo_logistics', accessToken: 'mock_livechat_token_logistics', webhookUrl: 'https://im-support.example.com/webhooks/livechat/channel-logistics-backup', receiveGroups: ['logistics'], humanGroups: ['human_support_l2'], opening: '你好，请提供订单号，我来帮你查询物流进度。', hotQuestions: ['物流为什么一直没有更新？', '显示签收但没有收到怎么办？'], ending: '物流进度请以承运商最新轨迹为准。', humanEnabled: true, humanFallback: '物流专员暂时无法接入，请稍后重试。', updatedAt: at('07', '12:30') }),
   ],
+  members: seedMembers,
+  roles: seedRoles,
+  currentMemberId: SEED_CURRENT_MEMBER_ID,
   settings: { chatTimeout: { enabled: true, minutes: 15 } },
   sessions: [
     makeSession({ id: 'session-01', title: '订单预计送达时间', channel: '官网客户服务', agentId: 'agent-support', startedAt: at('11', '09:42'), status: 'active', messageCount: 6, hits: ['流程：订单状态查询', '技能：查询订单'], user: '订单 LX202607110238 什么时候能到？', system: '命中流程“订单状态查询”，技能返回：运输中，预计 7 月 12 日送达。', reply: '订单正在运输中，预计 7 月 12 日送达。你可以继续在订单页面查看最新轨迹。' }),

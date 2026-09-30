@@ -10,6 +10,11 @@ import { WorkflowsPage, AgentWorkflowSection } from './workflows/WorkflowPages';
 import { WorkflowEditorPage } from './workflows/WorkflowEditor';
 import { ChannelsPage as ChannelsModulePage } from './pages/ChannelsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { UserManagementPage } from './pages/UserManagementPage';
+import { RoleManagementPage } from './pages/RoleManagementPage';
+import { LoginPage } from './pages/LoginPage';
+import { LivechatDashboardPage } from './pages/LivechatDashboardPage';
+import { OpsTenantManagementPage } from './pages/OpsTenantManagementPage';
 import { TeamDetailPage, TeamsPage } from './pages/TeamsPage';
 import { KnowledgeSectionV2 } from './pages/DetailSections';
 import { InboxPage } from './pages/InboxPage';
@@ -225,11 +230,13 @@ void VariablesSection;
 void MonitorSection;
 
 function ShellRoutes() {
-  return <AppShell><Routes><Route path="/" element={<Navigate to="/agents" replace />} /><Route path="/inbox" element={<InboxPage />} /><Route path="/agents" element={<AgentListPage />} /><Route path="/knowledge" element={<KnowledgePageV2 />} /><Route path="/workflows" element={<WorkflowsPage />} /><Route path="/teams" element={<TeamsPage />} /><Route path="/teams/:id" element={<TeamDetailPage />} /><Route path="/skills" element={<SkillsPageV2 />} /><Route path="/channels/*" element={<ChannelsModulePage />} /><Route path="/settings" element={<SettingsPage />} /><Route path="*" element={<Navigate to="/agents" replace />} /></Routes></AppShell>;
+  return <AppShell><Routes><Route path="/" element={<Navigate to="/inbox" replace />} /><Route path="/livechat/dashboard" element={<LivechatDashboardPage />} /><Route path="/ops" element={<Navigate to="/ops/tenants" replace />} /><Route path="/ops/tenants" element={<OpsTenantManagementPage />} /><Route path="/inbox" element={<InboxPage />} /><Route path="/agents" element={<AgentListPage />} /><Route path="/knowledge" element={<KnowledgePageV2 />} /><Route path="/workflows" element={<WorkflowsPage />} /><Route path="/teams" element={<TeamsPage />} /><Route path="/teams/:id" element={<TeamDetailPage />} /><Route path="/skills" element={<SkillsPageV2 />} /><Route path="/channels/*" element={<ChannelsModulePage />} /><Route path="/settings" element={<Navigate to="/settings/chat-timeout" replace />} /><Route path="/settings/chat-timeout" element={<SettingsPage />} /><Route path="/settings/members" element={<UserManagementPage />} /><Route path="/settings/roles" element={<RoleManagementPage />} /><Route path="*" element={<Navigate to="/inbox" replace />} /></Routes></AppShell>;
 }
 
 function AppRoutes() {
-  return <Routes><Route path="/agents/:id/:section" element={<AgentDetailPage />} /><Route path="/workflows/:id" element={<WorkflowEditorPage />} /><Route path="*" element={<ShellRoutes />} /></Routes>;
+  const { state } = useAppStore();
+  if (!state.session) return <Routes><Route path="/login" element={<LoginPage />} /><Route path="*" element={<Navigate to="/login" replace />} /></Routes>;
+  return <Routes><Route path="/login" element={<Navigate to="/inbox" replace />} /><Route path="/agents/:id/:section" element={<AgentDetailPage />} /><Route path="/workflows/:id" element={<WorkflowEditorPage />} /><Route path="*" element={<ShellRoutes />} /></Routes>;
 }
 
 export default function App() { return <AppProvider><AppRoutes /></AppProvider>; }

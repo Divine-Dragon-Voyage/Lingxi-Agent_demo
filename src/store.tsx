@@ -1,11 +1,18 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, useState, useCallback } from 'react';
-import { seedWorkflows, snapshot, validateWorkflow } from './workflows/model';
+import { seedWorkflows, snapshot, validateWorkflow, normalizeLegacyWorkflow } from './workflows/model';
 import type { Workflow, WorkflowDraft } from './workflows/model';
-import type { AppState, Agent, AgentConfig, Channel, ChatTimeoutSettings, Flow, Guard, KnowledgeDocument, Skill, Team, TeamMember } from './types';
-import { BOUND_DELETE_DEMO_DOCUMENT_ID, KNOWLEDGE_DELETE_DEMO_VERSION, now, seedState, UNBOUND_DELETE_DEMO_DOCUMENT_ID } from './mockData';
+import type { AppState, Agent, AgentConfig, Channel, ChatTimeoutSettings, Flow, Guard, KnowledgeDocument, Skill, Team, TeamMember, TenantAccount, TenantMember, TenantRole } from './types';
+import type { AppLanguage, WorkspaceMode } from './i18n';
+import { BOUND_DELETE_DEMO_DOCUMENT_ID, KNOWLEDGE_DELETE_DEMO_VERSION, MEMBERS_PERMISSIONS_DEMO_VERSION, now, SEED_CURRENT_MEMBER_ID, seedMembers, seedRoles, seedState, UNBOUND_DELETE_DEMO_DOCUMENT_ID } from './mockData';
 import { DEFAULT_TEAM_ID, DEFAULT_TEAM_NAME, isDefaultTeam } from './teamDefaults';
+import { LOGIN_SESSION_KEY, readDemoSession } from './auth';
+import { currentMember } from './permissions';
 
 type Action =
+  | { type: 'session.login'; username: string }
+  | { type: 'ui.language'; language: AppLanguage }
+  | { type: 'ui.workspace'; workspaceMode: WorkspaceMode; lastAgentsPath?: string }
+  | { type: 'session.logout' }
   | { type: 'workflow.add'; workflow: Workflow }
   | { type: 'workflow.save'; id: string; draft: WorkflowDraft }
   | { type: 'workflow.publish'; id: string }
@@ -28,7 +35,17 @@ type Action =
   | { type: 'channel.save'; channel: Channel }
   | { type: 'channel.toggle'; id: string; enabled: boolean }
   | { type: 'channel.delete'; id: string }
-  | { type: 'settings.saveChatTimeout'; value: ChatTimeoutSettings };
+  | { type: 'member.add'; member: TenantMember }
+  | { type: 'member.updateRole'; id: string; roleId: string }
+  | { type: 'member.toggleEnabled'; id: string; enabled: boolean }
+  | { type: 'member.delete'; id: string }
+  | { type: 'role.add'; role: TenantRole }
+  | { type: 'role.update'; id: string; patch: Partial<TenantRole> }
+  | { type: 'role.delete'; id: string }
+  | { type: 'settings.saveChatTimeout'; value: ChatTimeoutSettings }
+  | { type: 'tenant.add'; tenant: TenantAccount }
+  | { type: 'tenant.update'; id: string; patch: Partial<Pick<TenantAccount, 'tenantName' | 'workspacePermissions' | 'enabled'>> }
+  | { type: 'tenant.toggle'; id: string; enabled: boolean };
 
 const STORAGE_KEY = 'lingxi-agent-prototype:v3:ai-customer-20260720';
 const AVATAR_REFERENCE_PREFIX = '__agent_avatar_ref__:';
@@ -115,6 +132,17 @@ function ensureKnowledgeDeleteDemoData(state: AppState): AppState {
   };
 }
 
+function ensureMembersPermissionsData(state: AppState): AppState {
+  if ((state.demoDataVersion ?? 0) >= MEMBERS_PERMISSIONS_DEMO_VERSION && state.members && state.roles && state.currentMemberId) return state;
+  return {
+    ...state,
+    demoDataVersion: MEMBERS_PERMISSIONS_DEMO_VERSION,
+    members: seedMembers,
+    roles: seedRoles,
+    currentMemberId: SEED_CURRENT_MEMBER_ID,
+  };
+}
+
 function serializeState(state: AppState): string {
   const avatarOwners = new Map<string, string>();
   const agents = state.agents.map((agent) => {
@@ -128,7 +156,16 @@ function serializeState(state: AppState): string {
     ...team,
     members: team.members.map((member) => member.kind === 'ai' && member.avatar ? { ...member, avatar: undefined } : member),
   }));
-  return JSON.stringify({ ...state, agents, teams });
+  const { session: _session, ...businessState } = state;
+  return JSON.stringify({ ...businessState, agents, teams });
+}
+
+function withStateDefaults(state: AppState): AppState {
+  return {
+    ...state,
+    ui: { language: state.ui?.language ?? 'zh-CN', workspaceMode: state.ui?.workspaceMode ?? 'agents', lastAgentsPath: state.ui?.lastAgentsPath },
+    tenantAccounts: state.tenantAccounts ?? seedState.tenantAccounts,
+  };
 }
 
 function deserializeState(stored: string): AppState {
@@ -147,14 +184,18 @@ function deserializeState(stored: string): AppState {
     }
     return avatar;
   };
-  return { ...state, settings: state.settings ?? { chatTimeout: { enabled: true, minutes: 15 } }, agents: state.agents.map((agent) => ({ ...agent, avatar: resolveAvatar(agent), draft: normalizeConfig(agent.draft) ?? agent.draft, published: normalizeConfig(agent.published) })) };
+  return withStateDefaults({ ...state, settings: state.settings ?? { chatTimeout: { enabled: true, minutes: 15 } }, agents: state.agents.map((agent) => ({ ...agent, avatar: resolveAvatar(agent), draft: normalizeConfig(agent.draft) ?? agent.draft, published: normalizeConfig(agent.published) })) });
 }
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
+    case 'session.login': return { ...state, session: { username: action.username }, tenantAccounts: state.tenantAccounts.map((tenant) => tenant.ownerUsername === action.username ? { ...tenant, lastLoginAt: now() } : tenant) };
+    case 'session.logout': return { ...state, session: null };
+    case 'ui.language': return { ...state, ui: { ...state.ui, language: action.language } };
+    case 'ui.workspace': return { ...state, ui: { ...state.ui, workspaceMode: action.workspaceMode, lastAgentsPath: action.lastAgentsPath ?? state.ui.lastAgentsPath } };
     case 'workflow.add': return { ...state, workflows: [action.workflow, ...state.workflows] };
     case 'workflow.save': return { ...state, workflows: state.workflows.map((flow) => flow.id === action.id ? { ...flow, draft: action.draft, updatedAt: now() } : flow) };
-    case 'workflow.publish': return { ...state, workflows: state.workflows.map((flow) => flow.id === action.id && !validateWorkflow(flow.draft, state.teams.map((team) => team.id)).length ? { ...flow, published: snapshot(flow.draft), publishedAt: now(), updatedAt: now() } : flow) };
+    case 'workflow.publish': return { ...state, workflows: state.workflows.map((flow) => flow.id === action.id && !validateWorkflow(flow.draft, state.documents.filter((doc) => doc.status === 'success').map((doc) => doc.id)).length ? { ...flow, published: snapshot(flow.draft), publishedAt: now(), updatedAt: now() } : flow) };
     case 'workflow.delete': return state.agents.some((agent) => agent.draft.workflowIds?.includes(action.id) || agent.published?.workflowIds?.includes(action.id)) ? state : { ...state, workflows: state.workflows.filter((flow) => flow.id !== action.id) };
     case 'agent.workflows': return { ...state, agents: state.agents.map((agent) => agent.id === action.id ? { ...agent, draft: { ...agent.draft, workflowIds: [...new Set(action.workflowIds)].filter((id) => state.workflows.some((flow) => flow.id === id && flow.published)) }, updatedAt: now() } : agent) };
     case 'agent.update': {
@@ -218,17 +259,84 @@ function reducer(state: AppState, action: Action): AppState {
     case 'channel.save': return { ...state, channels: state.channels.some((item) => item.id === action.channel.id) ? state.channels.map((item) => item.id === action.channel.id ? action.channel : item) : [action.channel, ...state.channels] };
     case 'channel.toggle': return { ...state, channels: state.channels.map((item) => item.id === action.id ? { ...item, enabled: action.enabled, updatedAt: now() } : item) };
     case 'channel.delete': return { ...state, channels: state.channels.filter((item) => item.id !== action.id) };
+    case 'member.add': {
+      const duplicate = state.members.some((item) => item.username.trim().toLowerCase() === action.member.username.trim().toLowerCase());
+      if (duplicate) return state;
+      return { ...state, members: [action.member, ...state.members] };
+    }
+    case 'member.updateRole': {
+      const target = state.members.find((item) => item.id === action.id);
+      const role = state.roles.find((item) => item.id === action.roleId);
+      if (!target || !role || target.roleId === action.roleId) return state;
+      if (target.roleId === 'role-owner') return state;
+      return { ...state, members: state.members.map((item) => item.id === action.id ? { ...item, roleId: action.roleId } : item) };
+    }
+    case 'member.toggleEnabled': {
+      const target = state.members.find((item) => item.id === action.id);
+      if (!target || target.id === currentMember(state)?.id) return state;
+      if (target.roleId === 'role-owner' && !action.enabled) return state;
+      return { ...state, members: state.members.map((item) => item.id === action.id ? { ...item, enabled: action.enabled } : item) };
+    }
+    case 'member.delete': {
+      const target = state.members.find((item) => item.id === action.id);
+      if (!target || target.id === currentMember(state)?.id) return state;
+      if (target.roleId === 'role-owner') return state;
+      return { ...state, members: state.members.filter((item) => item.id !== action.id) };
+    }
+    case 'role.add': {
+      const name = action.role.name.trim();
+      if (!name || name === 'Owner' || name === '超级管理员') return state;
+      if (state.roles.some((item) => item.name.trim().toLowerCase() === name.toLowerCase())) return state;
+      return { ...state, roles: [action.role, ...state.roles] };
+    }
+    case 'role.update': {
+      const target = state.roles.find((item) => item.id === action.id);
+      if (!target || target.builtin) return state;
+      const name = action.patch.name?.trim();
+      if (name !== undefined) {
+        if (!name || name === 'Owner' || name === '超级管理员') return state;
+        if (state.roles.some((item) => item.id !== action.id && item.name.trim().toLowerCase() === name.toLowerCase())) return state;
+      }
+      return { ...state, roles: state.roles.map((item) => item.id === action.id ? { ...item, ...action.patch } : item) };
+    }
+    case 'role.delete': {
+      const target = state.roles.find((item) => item.id === action.id);
+      if (!target || target.builtin) return state;
+      if (state.members.some((member) => member.roleId === action.id)) return state;
+      return { ...state, roles: state.roles.filter((item) => item.id !== action.id) };
+    }
     case 'settings.saveChatTimeout': return { ...state, settings: { ...state.settings, chatTimeout: action.value } };
+    case 'tenant.add': {
+      const duplicate = state.tenantAccounts.some((tenant) => tenant.ownerUsername.trim().toLowerCase() === action.tenant.ownerUsername.trim().toLowerCase());
+      if (duplicate) return state;
+      return { ...state, tenantAccounts: [action.tenant, ...state.tenantAccounts] };
+    }
+    case 'tenant.update': return { ...state, tenantAccounts: state.tenantAccounts.map((tenant) => tenant.id === action.id ? { ...tenant, ...action.patch } : tenant) };
+    case 'tenant.toggle': return { ...state, tenantAccounts: state.tenantAccounts.map((tenant) => tenant.id === action.id ? { ...tenant, enabled: action.enabled } : tenant) };
     default: return state;
   }
 }
 
 function loadState(): AppState {
-  const withWorkflows = (state: AppState): AppState => ({ ...state, workflows: state.workflows ?? seedWorkflows() });
-  try { const stored = localStorage.getItem(STORAGE_KEY); return withWorkflows(ensureKnowledgeDeleteDemoData(normalizeTeamIds(stored ? deserializeState(stored) : { ...seedState, workflows: seedWorkflows() }))); } catch { return withWorkflows(ensureKnowledgeDeleteDemoData(normalizeTeamIds({ ...seedState, workflows: seedWorkflows() }))); }
+  const withWorkflows = (state: AppState): AppState => {
+    state = { ...state, workflows: (state.workflows ?? []).map(normalizeLegacyWorkflow) };
+    if (state.workflowExamplesVersion === 1) return state;
+    const examples = seedWorkflows();
+    const workflows = state.workflows ?? [];
+    const additions = examples.filter((flow) => !workflows.some((existing) => existing.id === flow.id));
+    const fresh = workflows.length === 0;
+    const bindingId = fresh ? 'workflow-order-demo' : additions.find((flow) => flow.id === 'workflow-deposit-demo')?.id;
+    const agentId = state.agents.find((agent) => agent.published)?.id;
+    return { ...state, workflowExamplesVersion: 1, workflows: [...workflows, ...additions], agents: state.agents.map((agent) => {
+      if (!bindingId || agent.id !== agentId || !agent.published) return agent;
+      return { ...agent, draft: { ...agent.draft, workflowIds: [...new Set([...(agent.draft.workflowIds ?? []), bindingId])] }, published: { ...agent.published, workflowIds: [...new Set([...(agent.published.workflowIds ?? []), bindingId])] } };
+    }) };
+  };
+  const withMembers = (state: AppState): AppState => withStateDefaults({ ...ensureMembersPermissionsData(state), session: readDemoSession() });
+  try { const stored = localStorage.getItem(STORAGE_KEY); return withMembers(withWorkflows(ensureKnowledgeDeleteDemoData(normalizeTeamIds(stored ? deserializeState(stored) : seedState)))); } catch { return withMembers(withWorkflows(ensureKnowledgeDeleteDemoData(normalizeTeamIds(seedState)))); }
 }
 
-const StoreContext = createContext<{ state: AppState; dispatch: React.Dispatch<Action>; saveStatus: 'saving' | 'saved' | 'error'; retrySave: () => void } | null>(null);
+const StoreContext = createContext<{ state: AppState; dispatch: React.Dispatch<Action>; saveStatus: 'saving' | 'saved' | 'error'; retrySave: () => void; login: (username: string) => void; logout: () => void } | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, loadState);
@@ -245,7 +353,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [state]);
   useEffect(persist, [persist]);
   const saveStatus: 'error' | 'saved' | 'saving' = saveFailed ? 'error' : persisted === state ? 'saved' : 'saving';
-  const value = useMemo(() => ({ state, dispatch, saveStatus, retrySave: persist }), [state, saveStatus, persist]);
+  const login = useCallback((username: string) => {
+    sessionStorage.setItem(LOGIN_SESSION_KEY, JSON.stringify({ username: username.trim() }));
+    dispatch({ type: 'session.login', username: username.trim() });
+  }, []);
+  const logout = useCallback(() => {
+    sessionStorage.removeItem(LOGIN_SESSION_KEY);
+    dispatch({ type: 'session.logout' });
+  }, []);
+  const value = useMemo(() => ({ state, dispatch, saveStatus, retrySave: persist, login, logout }), [state, saveStatus, persist, login, logout]);
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 
