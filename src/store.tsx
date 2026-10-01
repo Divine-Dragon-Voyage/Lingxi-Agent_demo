@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, useState, useCallback } from 'react';
 import { seedWorkflows, snapshot, validateWorkflow, normalizeLegacyWorkflow } from './workflows/model';
 import type { Workflow, WorkflowDraft } from './workflows/model';
-import type { AppState, Agent, AgentConfig, Channel, ChatTimeoutSettings, Flow, Guard, KnowledgeDocument, Skill, Team, TeamMember, TenantAccount, TenantMember, TenantRole } from './types';
+import type { AppState, Agent, AgentConfig, Channel, ChatTimeoutSettings, Flow, Guard, KnowledgeDocument, ReceptionConfig, Skill, Team, TeamMember, TenantAccount, TenantMember, TenantRole } from './types';
 import type { AppLanguage, WorkspaceMode } from './i18n';
 import { BOUND_DELETE_DEMO_DOCUMENT_ID, KNOWLEDGE_DELETE_DEMO_VERSION, MEMBERS_PERMISSIONS_DEMO_VERSION, now, SEED_CURRENT_MEMBER_ID, seedMembers, seedRoles, seedState, UNBOUND_DELETE_DEMO_DOCUMENT_ID } from './mockData';
 import { DEFAULT_TEAM_ID, DEFAULT_TEAM_NAME, isDefaultTeam } from './teamDefaults';
@@ -64,6 +64,24 @@ const LEGACY_CREATOR_NAMES: Record<string, string> = {
   客服培训组: 'Ava',
   售后运营: 'Noah',
 };
+
+const DEFAULT_RECEPTION_CONFIG: ReceptionConfig = {
+  welcomeEnabled: false,
+  welcomeMessage: '',
+  noMessageFollowUpEnabled: false,
+  noMessageFollowUpDelaySeconds: 30,
+  noMessageFollowUpMessage: '',
+  afterReplyFollowUpEnabled: false,
+  afterReplyFollowUpDelaySeconds: 60,
+  afterReplyFollowUpMessage: '',
+  closingMessageEnabled: false,
+  closingMessage: '',
+};
+
+const normalizeReception = (reception?: Partial<ReceptionConfig>): ReceptionConfig => ({
+  ...DEFAULT_RECEPTION_CONFIG,
+  ...reception,
+});
 
 function keepDefaultTeam(state: AppState): AppState {
   const existing = state.teams.find(isDefaultTeam);
@@ -172,7 +190,10 @@ function deserializeState(stored: string): AppState {
   const state = JSON.parse(stored) as AppState;
   const avatars = new Map(state.agents.map((agent) => [agent.id, agent.avatar]));
   const validLanguages = new Set(['简体中文', '繁体中文', '英语', '越南语', '泰语', '高棉语', '缅甸语', '老挝语']);
-  const normalizeConfig = (config: AgentConfig | null): AgentConfig | null => config && !validLanguages.has(config.language) ? { ...config, language: '英语' } : config;
+  const normalizeConfig = (config: AgentConfig | null): AgentConfig | null => {
+    if (!config) return null;
+    return { ...config, language: validLanguages.has(config.language) ? config.language : '英语', reception: normalizeReception(config.reception) };
+  };
   const resolveAvatar = (agent: Agent) => {
     let avatar = agent.avatar;
     const visited = new Set<string>();

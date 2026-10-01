@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent, MouseEvent } from 'react';
-import { Avatar, Button, Card, Checkbox, Col, DatePicker, Descriptions, Divider, Drawer, Dropdown, Empty, Form, Input, Menu, Modal, Popconfirm, Radio, Row, Select, Space, Switch, Table, Tag, Message, Tooltip } from './components/ui';
+import { Avatar, Button, Card, Checkbox, Col, DatePicker, Descriptions, Divider, Drawer, Dropdown, Empty, Form, Input, InputNumber, Menu, Modal, Popconfirm, Radio, Row, Select, Space, Switch, Table, Tag, Message, Tooltip } from './components/ui';
 import { IconArrowLeft, IconCopy, IconDelete, IconEdit, IconEye, IconImage, IconLink, IconMore, IconPlus, IconRefresh, IconRobot, IconSave, IconSend, IconThunderbolt, IconUpload } from '@arco-design/web-react/icon';
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
@@ -33,6 +33,18 @@ const REPLY_LANGUAGES = ['简体中文', '繁体中文', '英语', '越南语', 
 const statusMap = { draft: ['未发布', 'warning'], published: ['已发布', 'success'] } as const;
 const AGENT_DETAIL_SECTIONS = [{ key: 'agent', label: '个人资料' }, { key: 'knowledge', label: '知识库' }, { key: 'workflow', label: '工作流' }, { key: 'reception', label: '接待设置' }] as const;
 const AGENT_DETAIL_SECTION_TITLES: Record<string, string> = { agent: '个人资料', workflow: '工作流', reception: '接待设置' };
+const DEFAULT_RECEPTION_CONFIG: ReceptionConfig = {
+  welcomeEnabled: false,
+  welcomeMessage: '',
+  noMessageFollowUpEnabled: false,
+  noMessageFollowUpDelaySeconds: 30,
+  noMessageFollowUpMessage: '',
+  afterReplyFollowUpEnabled: false,
+  afterReplyFollowUpDelaySeconds: 60,
+  afterReplyFollowUpMessage: '',
+  closingMessageEnabled: false,
+  closingMessage: '',
+};
 
 function StatusTag({ status, children }: { status?: keyof typeof statusMap; children?: React.ReactNode }) {
   if (status) { const [label, color] = statusMap[status]; return <Tag color={color}>{label}</Tag>; }
@@ -52,7 +64,7 @@ function AgentListPage() {
   const [status, setStatus] = useState<'all' | Agent['status']>('all');
   const agents = state.agents.filter((agent) => `${agent.name}${agent.description}`.toLowerCase().includes(query.toLowerCase()) && (status === 'all' || agent.status === status));
   const createAgent = () => {
-    const newAgent: Agent = { id: id('agent'), name: '', description: '', avatar: AVATAR_PLACEHOLDER, status: 'draft', updatedAt: now(), teamIds: [DEFAULT_TEAM_ID], acceptingChats: false, draft: { prompt: '', language: DEFAULT_REPLY_LANGUAGE, style: '自然', memoryEnabled: true, memoryDays: 7, historyRounds: 10, errorMessage: '抱歉，我暂时无法完成本次回复，请稍后再试或联系人工支持。', transferToHuman: { enabled: true, mode: 'automatic' }, reception: { welcomeEnabled: false, welcomeMessage: '' }, flows: [], skillIds: [], knowledgeIds: [], guards: [], variables: [] }, published: null };
+    const newAgent: Agent = { id: id('agent'), name: '', description: '', avatar: AVATAR_PLACEHOLDER, status: 'draft', updatedAt: now(), teamIds: [DEFAULT_TEAM_ID], acceptingChats: false, draft: { prompt: '', language: DEFAULT_REPLY_LANGUAGE, style: '自然', memoryEnabled: true, memoryDays: 7, historyRounds: 10, errorMessage: '抱歉，我暂时无法完成本次回复，请稍后再试或联系人工支持。', transferToHuman: { enabled: true, mode: 'automatic' }, reception: DEFAULT_RECEPTION_CONFIG, flows: [], skillIds: [], knowledgeIds: [], guards: [], variables: [] }, published: null };
     dispatch({ type: 'agent.add', agent: newAgent }); toast.success('AI Agent 草稿已创建'); navigate(`/agents/${newAgent.id}/agent`);
   };
   const copyAgent = (agent: Agent) => { const copied: Agent = { ...JSON.parse(JSON.stringify(agent)), id: id('agent'), name: `${agent.name || '未命名'}_副本`, status: 'draft', published: null, acceptingChats: false, updatedAt: now() }; dispatch({ type: 'agent.add', agent: copied }); };
@@ -94,9 +106,31 @@ function AgentBasics({ agent }: { agent: Agent }) {
 
 function ReceptionSection({ agent }: { agent: Agent }) {
   const { dispatch } = useAppStore();
-  const reception: ReceptionConfig = agent.draft.reception ?? { welcomeEnabled: false, welcomeMessage: '' };
+  const reception: ReceptionConfig = { ...DEFAULT_RECEPTION_CONFIG, ...agent.draft.reception };
   const save = (patch: Partial<ReceptionConfig>) => dispatch({ type: 'agent.config', id: agent.id, config: { ...agent.draft, reception: { ...reception, ...patch } } });
-  return <section className="detail-section"><div className="detail-section-head"><h2>欢迎语</h2><Switch checked={reception.welcomeEnabled} onChange={(checked) => save({ welcomeEnabled: checked })} aria-label="欢迎语开关" /></div>{reception.welcomeEnabled && <div className="detail-section-body"><Input.TextArea value={reception.welcomeMessage} maxLength={500} showCount autoSize={{ minRows: 3, maxRows: 8 }} placeholder="请输入欢迎语" onChange={(welcomeMessage: string) => save({ welcomeMessage })} /></div>}</section>;
+  const updateDelay = (key: 'noMessageFollowUpDelaySeconds' | 'afterReplyFollowUpDelaySeconds', value?: number) => save({ [key]: Math.max(1, Math.floor(Number(value) || 1)) } as Partial<ReceptionConfig>);
+  const followUpScenario = (
+    title: string,
+    enabledKey: 'noMessageFollowUpEnabled' | 'afterReplyFollowUpEnabled',
+    delayKey: 'noMessageFollowUpDelaySeconds' | 'afterReplyFollowUpDelaySeconds',
+    messageKey: 'noMessageFollowUpMessage' | 'afterReplyFollowUpMessage',
+    placeholder: string,
+  ) => <div className="reception-scenario">
+    <div className="reception-scenario-head"><span>{title}</span><Switch checked={Boolean(reception[enabledKey])} onChange={(checked) => save({ [enabledKey]: checked } as Partial<ReceptionConfig>)} aria-label={`${title}开关`} /></div>
+    {reception[enabledKey] && <div className="reception-scenario-body">
+      <div className="reception-delay-row"><span>等待时间</span><InputNumber min={1} precision={0} value={reception[delayKey]} onChange={(value) => updateDelay(delayKey, value as number)} /><span>秒</span></div>
+      <Input.TextArea value={String(reception[messageKey] || '')} maxLength={500} showCount autoSize={{ minRows: 3, maxRows: 8 }} placeholder={placeholder} onChange={(value: string) => save({ [messageKey]: value } as Partial<ReceptionConfig>)} />
+    </div>}
+  </div>;
+
+  return <div className="reception-settings">
+    <section className="detail-section reception-card"><div className="detail-section-head"><h2>欢迎语</h2><Switch checked={reception.welcomeEnabled} onChange={(checked) => save({ welcomeEnabled: checked })} aria-label="欢迎语开关" /></div>{reception.welcomeEnabled && <div className="detail-section-body"><Input.TextArea value={reception.welcomeMessage} maxLength={500} showCount autoSize={{ minRows: 3, maxRows: 8 }} placeholder="请输入欢迎语" onChange={(welcomeMessage: string) => save({ welcomeMessage })} /></div>}</section>
+    <section className="detail-section reception-card"><div className="detail-section-head"><h2>跟进语</h2></div><div className="detail-section-body reception-follow-up-list">
+      {followUpScenario('客户进入聊天后未发送消息', 'noMessageFollowUpEnabled', 'noMessageFollowUpDelaySeconds', 'noMessageFollowUpMessage', '请输入客户进入聊天后未发送消息时的跟进语')}
+      {followUpScenario('AI Agents 回复后客户未回复', 'afterReplyFollowUpEnabled', 'afterReplyFollowUpDelaySeconds', 'afterReplyFollowUpMessage', '请输入 AI Agents 回复后客户未回复时的跟进语')}
+    </div></section>
+    <section className="detail-section reception-card"><div className="detail-section-head"><h2>结束语</h2><Switch checked={reception.closingMessageEnabled} onChange={(checked) => save({ closingMessageEnabled: checked })} aria-label="结束语开关" /></div>{reception.closingMessageEnabled && <div className="detail-section-body"><Input.TextArea value={reception.closingMessage} maxLength={500} showCount autoSize={{ minRows: 3, maxRows: 8 }} placeholder="请输入会话关闭前发送的结束语" onChange={(closingMessage: string) => save({ closingMessage })} /></div>}</section>
+  </div>;
 }
 
 function FlowSection({ agent }: { agent: Agent }) {

@@ -1047,3 +1047,20 @@ select:focus-visible {
 .ops-workspace-checkboxes { display: flex; align-items: center; gap: var(--space-6); }
 .ops-workspace-checkboxes .arco-checkbox { display: inline-flex; align-items: center; margin: 0; }
 .ops-workspace-checkboxes .arco-checkbox-text { padding-left: var(--space-1); }
+.arco-popover-content:has(.sidebar-profile-popover-wrap) { padding: 0; background: transparent; border: 0; box-shadow: none; }
+.arco-popover-content:has(.sidebar-profile-popover-wrap) .arco-popover-arrow { background: var(--color-background); border-color: var(--color-border); }
+
+.reception-settings { display: grid; gap: var(--space-5); }
+.reception-card { padding: var(--space-4) var(--space-5); background: var(--color-background); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.reception-card.detail-section { border-bottom: 1px solid var(--color-border); }
+.reception-card + .reception-card { margin-top: 0; }
+.reception-card .detail-section-head { padding-bottom: var(--space-4); }
+.reception-card .detail-section-head h2 { color: var(--color-foreground); font-size: var(--font-size-section); line-height: var(--line-height-section); font-weight: 600; }
+.reception-card .detail-section-body { padding-bottom: 0; }
+.reception-follow-up-list { display: grid; gap: var(--space-4); }
+.reception-scenario { padding: var(--space-4); background: var(--color-surface-container); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.reception-scenario-head { display: flex; min-height: 32px; align-items: center; justify-content: space-between; gap: var(--space-4); color: var(--color-foreground); font-weight: 600; }
+.reception-scenario-body { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
+.reception-delay-row { display: flex; align-items: center; gap: var(--space-2); color: var(--color-text-2); }
+.reception-delay-row .arco-input-number { width: 96px; }
+.reception-delay-row > span:first-child { margin-right: var(--space-2); color: var(--color-foreground); font-weight: 500; }

@@ -69,6 +69,14 @@ export interface TransferToHumanConfig {
 export interface ReceptionConfig {
   welcomeEnabled: boolean;
   welcomeMessage: string;
+  noMessageFollowUpEnabled: boolean;
+  noMessageFollowUpDelaySeconds: number;
+  noMessageFollowUpMessage: string;
+  afterReplyFollowUpEnabled: boolean;
+  afterReplyFollowUpDelaySeconds: number;
+  afterReplyFollowUpMessage: string;
+  closingMessageEnabled: boolean;
+  closingMessage: string;
 }
 
 export type TeamMemberKind = 'human' | 'ai';
